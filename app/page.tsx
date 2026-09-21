@@ -1,69 +1,114 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { supabase } from "@/lib/supabase";
+import { fmt, monthStartJkt, rangeIso, rupiah, todayJkt } from "@/lib/format";
+import type { BestSeller, Pnl, SaleRow, StockRow } from "@/lib/types";
+import { Bar, Card, Empty, Notice, PageTitle, Stat, type Msg } from "@/components/ui";
+
+export default function Dashboard() {
+  const [today, setToday] = useState({ revenue: 0, profit: 0, portions: 0 });
+  const [month, setMonth] = useState<Pnl | null>(null);
+  const [top, setTop] = useState<BestSeller[]>([]);
+  const [low, setLow] = useState<StockRow[]>([]);
+  const [msg, setMsg] = useState<Msg>(null);
+
+  async function load() {
+    const t = todayJkt();
+    const { start, end } = rangeIso(t, t);
+    const [s, p, b, l] = await Promise.all([
+      supabase
+        .from("sales")
+        .select("discount, platform_fee, sale_items(qty, unit_price, unit_cogs)")
+        .gte("sold_at", start)
+        .lte("sold_at", end),
+      supabase.rpc("report_pnl", { p_from: monthStartJkt(), p_to: t }),
+      supabase.rpc("report_best_sellers", { p_from: monthStartJkt(), p_to: t }),
+      supabase.from("v_stock").select("*").eq("is_low", true).order("name"),
+    ]);
+    const err = [s, p, b, l].find((x) => x.error)?.error;
+    if (err) setMsg({ type: "err", text: err.message });
+
+    const rows = (s.data ?? []) as SaleRow[];
+    let gross = 0, cogs = 0, disc = 0, fees = 0, portions = 0;
+    for (const r of rows) {
+      disc += r.discount;
+      fees += r.platform_fee;
+      for (const i of r.sale_items) {
+        gross += i.qty * i.unit_price;
+        cogs += i.qty * i.unit_cogs;
+        portions += i.qty;
+      }
+    }
+    const revenue = gross - disc - fees;
+    setToday({ revenue, profit: revenue - cogs, portions });
+    setMonth(((p.data ?? []) as Pnl[])[0] ?? null);
+    setTop(((b.data ?? []) as BestSeller[]).slice(0, 5));
+    setLow((l.data ?? []) as StockRow[]);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, []);
+
+  const maxQty = Math.max(0, ...top.map((t) => t.qty_sold));
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div>
+      <PageTitle sub="Ringkasan hari ini dan bulan berjalan.">Beranda</PageTitle>
+      <Notice msg={msg} />
+
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <Stat label="Pendapatan bersih hari ini" value={rupiah(today.revenue)} />
+        <Stat label="Laba kotor hari ini" value={rupiah(today.profit)} hint={`${fmt(today.portions)} porsi terjual`} />
+        <Stat label="Laba bersih bulan ini" value={rupiah(month?.net_profit ?? 0)} hint="Sudah dikurangi biaya operasional" />
+        <Stat label="Biaya operasional bulan ini" value={rupiah(month?.opex ?? 0)} />
+      </div>
+
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <Link href="/sales/new" className="flex h-14 items-center justify-center rounded-xl bg-teal-700 font-semibold text-white active:bg-teal-800">
+          Catat penjualan
+        </Link>
+        <Link href="/stock" className="flex h-14 items-center justify-center rounded-xl border border-stone-300 bg-white font-semibold active:bg-stone-100">
+          Catat belanja bahan
+        </Link>
+      </div>
+
+      <Card className="mb-4">
+        <h2 className="mb-3 font-semibold">Menu terlaris bulan ini</h2>
+        {top.length === 0 ? (
+          <Empty>Belum ada penjualan bulan ini.</Empty>
+        ) : (
+          <ol className="space-y-3">
+            {top.map((t) => (
+              <li key={t.menu}>
+                <div className="mb-1 flex justify-between text-sm">
+                  <span className="font-medium">{t.menu}</span>
+                  <span className="tabular-nums text-stone-500">{fmt(t.qty_sold)} porsi</span>
+                </div>
+                <Bar value={t.qty_sold} max={maxQty} />
+              </li>
+            ))}
+          </ol>
+        )}
+      </Card>
+
+      <Card>
+        <h2 className="mb-3 font-semibold">Stok menipis</h2>
+        {low.length === 0 ? (
+          <Empty>Semua bahan masih di atas batas minimum.</Empty>
+        ) : (
+          <ul className="divide-y divide-stone-100">
+            {low.map((r) => (
+              <li key={r.id} className="flex justify-between py-2 text-sm">
+                <span className="font-medium">{r.name}</span>
+                <span className="tabular-nums text-red-700">
+                  sisa {fmt(r.on_hand)} {r.unit}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
     </div>
   );
 }
