@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { CHANNEL_LABEL, rupiah, todayJkt } from "@/lib/format";
 import type { Channel, MenuItem } from "@/lib/types";
 import { Card, Label, Notice, PageTitle, btnCls, inputCls, type Msg } from "@/components/ui";
+import { Thumb } from "@/components/BestSellerList";
 
 type Line = { qty: number; price: number };
 const ONLINE_CHANNELS: Channel[] = ["gofood", "grabfood", "shopeefood"];
@@ -160,8 +161,9 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
               const l = cart[m.id];
               return (
                 <Card key={m.id} className={l ? "border-teal-600" : ""}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
+                  <div className="flex items-center gap-3">
+                    <Thumb url={m.photo_url} name={m.name} size={44} />
+                    <div className="min-w-0 flex-1">
                       <div className="truncate font-semibold">{m.name}</div>
                       <div className="text-sm text-stone-500">{rupiah(m.price)}</div>
                     </div>

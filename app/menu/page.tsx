@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { fmt, pct, rupiah } from "@/lib/format";
 import type { Ingredient, MenuItem, RecipeItem } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
+import { Thumb } from "@/components/BestSellerList";
+import PhotoUpload from "@/components/PhotoUpload";
 
 export default function MenuPage() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
@@ -51,14 +54,21 @@ export default function MenuPage() {
       return;
     }
     setName(""); setCategory(""); setPrice("");
-    setMsg({ type: "ok", text: "Menu ditambahkan. Lengkapi resepnya agar HPP dan stok terhitung." });
+    setMsg({ type: "ok", text: "Menu ditambahkan. Lengkapi resep dan foto di bawah agar HPP dan stok terhitung." });
     setOpen(data?.id ?? null);
     load();
   }
 
   return (
     <div>
-      <PageTitle sub="Resep menentukan pemotongan stok dan HPP tiap penjualan.">Menu dan resep</PageTitle>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <PageTitle sub="Resep menentukan pemotongan stok dan HPP tiap penjualan.">
+          Menu dan resep
+        </PageTitle>
+        <Link href="/menu/import" className={`${btnGhostCls} h-10 shrink-0 px-3 text-sm`}>
+          Impor massal
+        </Link>
+      </div>
       <Notice msg={msg} />
 
       <Card className="mb-4 space-y-3">
@@ -89,8 +99,9 @@ export default function MenuPage() {
             const hasRecipe = recipes.some((r) => r.menu_item_id === m.id);
             return (
               <Card key={m.id} className={m.is_active ? "" : "opacity-60"}>
-                <button className="flex w-full items-center justify-between gap-3 text-left" onClick={() => setOpen(open === m.id ? null : m.id)}>
-                  <div className="min-w-0">
+                <button className="flex w-full items-center gap-3 text-left" onClick={() => setOpen(open === m.id ? null : m.id)}>
+                  <Thumb url={m.photo_url} name={m.name} size={48} />
+                  <div className="min-w-0 flex-1">
                     <div className="truncate font-semibold">
                       {m.name} {!m.is_active && <span className="text-xs font-normal text-stone-500">(disembunyikan)</span>}
                     </div>
@@ -98,7 +109,7 @@ export default function MenuPage() {
                       {m.category || "Tanpa kategori"}, {rupiah(m.price)}
                     </div>
                   </div>
-                  <div className="text-right text-sm">
+                  <div className="shrink-0 text-right text-sm">
                     {hasRecipe ? (
                       <>
                         <div className="font-semibold tabular-nums">HPP {rupiah(hpp)}</div>
@@ -144,6 +155,11 @@ function MenuEditor({
   const [qty, setQty] = useState("");
   const sel = ings.find((i) => i.id === ing);
 
+  async function savePhoto(url: string | null) {
+    const { error } = await supabase.from("menu_items").update({ photo_url: url }).eq("id", menu.id);
+    onChanged(error ? { type: "err", text: error.message } : { type: "ok", text: url ? "Foto tersimpan." : "Foto dihapus." });
+  }
+
   async function saveInfo() {
     const { error } = await supabase
       .from("menu_items")
@@ -180,6 +196,11 @@ function MenuEditor({
 
   return (
     <div className="mt-4 space-y-4 border-t border-stone-100 pt-4">
+      <div>
+        <Label>Foto produk</Label>
+        <PhotoUpload value={menu.photo_url} onChange={savePhoto} pathPrefix={menu.id} />
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>Harga jual (Rp)</Label>

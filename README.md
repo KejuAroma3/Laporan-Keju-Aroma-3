@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Kafe Stok
 
-## Getting Started
+Aplikasi web (bisa dipasang di HP) untuk stok masuk/keluar, penjualan offline dan
+online (GoFood/GrabFood/ShopeeFood), menu terlaris, dan laporan keuangan.
 
-First, run the development server:
+Teknologi: Next.js 14, React 18, Tailwind CSS 3, Supabase.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Menjalankan di komputer
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+    npm install
+    npm run dev
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Buka http://localhost:3000
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+File `.env.local` berisi alamat dan kunci Supabase. Jika belum ada, salin dari `.env.example`.
 
-## Learn More
+## Database (Supabase, SQL Editor)
 
-To learn more about Next.js, take a look at the following resources:
+1. Database baru/kosong: jalankan berurutan `supabase/1-skema.sql`, `supabase/2-tambahan.sql`,
+   lalu `supabase/3-foto-dan-dashboard.sql`.
+2. Sudah pernah menjalankan skema sebelumnya: cukup jalankan `supabase/3-foto-dan-dashboard.sql`
+   (aman dijalankan berulang).
+3. Authentication > Users: buat akun untuk Anda dan staf.
+4. Authentication > Providers > Email: matikan pendaftaran mandiri (Allow new users to sign up).
+5. Storage: file `3-foto-dan-dashboard.sql` otomatis membuat bucket `produk` untuk foto.
+   Tidak perlu dibuat manual.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deploy ke Vercel
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Push ke GitHub, lalu Import project di Vercel.
+2. Settings > Environment Variables: isi `NEXT_PUBLIC_SUPABASE_URL` dan
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY` (nilainya sama dengan `.env.local`).
+3. Deploy. Setelah itu di Supabase > Authentication > URL Configuration,
+   isi Site URL dengan domain Vercel Anda.
 
-## Deploy on Vercel
+## Pasang di HP
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Android (Chrome): menu titik tiga > Instal aplikasi.
+- iPhone (Safari): Bagikan > Tambah ke Layar Utama.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Urutan mengisi data
+
+1. Lainnya > Bahan baku
+2. Stok > Masuk (stok awal dan harga beli)
+3. Lainnya > Menu dan resep (bisa satu-satu, atau impor massal lewat tombol di halaman ini)
+4. Buka tiap menu untuk menambah resep dan foto produk
+5. Mulai mencatat penjualan
+
+## Fitur
+
+- **Beranda**: produk paling banyak terjual, dengan tab Harian / Mingguan / Bulanan dan
+  navigasi tanggal (panah kiri-kanan atau pilih tanggal langsung).
+- **Impor produk massal**: Menu dan resep > Impor massal. Unduh format CSV, isi nama,
+  kategori, dan harga, lalu unggah. Produk dengan nama yang sama akan diperbarui harganya.
+  Resep dan foto tetap ditambahkan satu per satu setelah impor.
+- **Foto produk**: dibuka dari halaman Menu dan resep, di dalam tiap menu. Foto otomatis
+  dikecilkan di perangkat sebelum diunggah agar hemat data dan ruang penyimpanan.

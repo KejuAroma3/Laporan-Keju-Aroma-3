@@ -1,4 +1,8 @@
--- Jalankan SEKALI di Supabase > SQL Editor (fungsi laporan per channel)
+-- ============================================================
+-- 2) TAMBAHAN. Jalankan setelah skema. Aman dijalankan berulang kali.
+--    Berisi: fungsi laporan per channel + izin akses untuk user login.
+-- ============================================================
+
 create or replace function report_channels(p_from date, p_to date)
 returns table(channel sales_channel, qty bigint, gross numeric,
               discounts numeric, fees numeric, cogs numeric)
@@ -18,3 +22,8 @@ language sql as $$
   where (sa.sold_at at time zone 'Asia/Jakarta')::date between p_from and p_to
   group by sa.channel;
 $$;
+
+-- Izin akses (dibutuhkan agar aplikasi bisa membaca tabel, view, dan fungsi)
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant execute on all functions in schema public to authenticated;

@@ -15,6 +15,7 @@ export type MenuItem = {
   category: string | null;
   price: number;
   is_active: boolean;
+  photo_url: string | null;
 };
 
 export type RecipeItem = {
@@ -51,9 +52,13 @@ export type Pnl = {
 };
 
 export type BestSeller = {
+  menu_item_id: string;
   menu: string;
   category: string | null;
+  photo_url: string | null;
   qty_sold: number;
   revenue: number;
   gross_profit: number;
 };
+
+export type Period = "harian" | "mingguan" | "bulanan";

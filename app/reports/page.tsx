@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { CHANNEL_LABEL, daysAgoJkt, fmt, monthStartJkt, pct, rangeIso, rupiah, todayJkt } from "@/lib/format";
 import type { BestSeller, Channel, Pnl } from "@/lib/types";
 import { Bar, Card, Empty, Notice, PageTitle, Tabs, btnGhostCls, inputCls, type Msg } from "@/components/ui";
+import BestSellerList from "@/components/BestSellerList";
 
 type Tab = "terlaris" | "labarugi" | "biaya" | "channel";
 type SortKey = "qty_sold" | "revenue" | "gross_profit";
@@ -64,7 +65,6 @@ export default function ReportsPage() {
   const opex = exp.reduce((s, r) => s + r.amount, 0);
 
   const sortedBest = [...best].sort((a, b) => b[sort] - a[sort]);
-  const maxSort = Math.max(0, ...sortedBest.map((x) => x[sort]));
   const chanSorted = [...chan].sort(
     (a, b) => b.gross - b.discounts - b.fees - b.cogs - (a.gross - a.discounts - a.fees - a.cogs)
   );
@@ -110,30 +110,9 @@ export default function ReportsPage() {
               </button>
             ))}
           </div>
-          {sortedBest.length === 0 ? (
-            <Empty>Belum ada penjualan pada periode ini.</Empty>
-          ) : (
-            <div className="space-y-2">
-              {sortedBest.map((b, i) => (
-                <Card key={b.menu}>
-                  <div className="mb-2 flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-semibold">{i + 1}. {b.menu}</div>
-                      <div className="text-sm text-stone-500">{b.category || "Tanpa kategori"}</div>
-                    </div>
-                    <div className="text-right text-sm tabular-nums">
-                      <div className="font-bold">{fmt(b.qty_sold)} porsi</div>
-                    </div>
-                  </div>
-                  <Bar value={b[sort]} max={maxSort} />
-                  <div className="mt-2 flex justify-between text-sm text-stone-600">
-                    <span>Omzet {rupiah(b.revenue)}</span>
-                    <span>Laba {rupiah(b.gross_profit)} ({pct(b.gross_profit, b.revenue)})</span>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
+          <Card>
+            <BestSellerList items={sortedBest} detailed />
+          </Card>
         </div>
       )}
 
