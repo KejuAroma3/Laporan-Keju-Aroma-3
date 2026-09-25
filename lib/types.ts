@@ -62,3 +62,5 @@ export type BestSeller = {
 };
 
 export type Period = "harian" | "mingguan" | "bulanan";
+
+export type Unit = { id: string; name: string };

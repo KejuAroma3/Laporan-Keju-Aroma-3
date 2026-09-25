@@ -149,6 +149,7 @@ function MenuEditor({
   recipe: RecipeItem[];
   onChanged: (m: Msg) => void;
 }) {
+  const [name, setName] = useState(menu.name);
   const [price, setPrice] = useState(String(menu.price));
   const [category, setCategory] = useState(menu.category ?? "");
   const [ing, setIng] = useState("");
@@ -161,11 +162,34 @@ function MenuEditor({
   }
 
   async function saveInfo() {
+    if (!name.trim()) {
+      onChanged({ type: "err", text: "Nama menu tidak boleh kosong." });
+      return;
+    }
     const { error } = await supabase
       .from("menu_items")
-      .update({ price: Number(price) || 0, category: category.trim() || null })
+      .update({ name: name.trim(), price: Number(price) || 0, category: category.trim() || null })
       .eq("id", menu.id);
-    onChanged(error ? { type: "err", text: error.message } : { type: "ok", text: "Menu diperbarui. Harga baru berlaku untuk penjualan berikutnya." });
+    if (error) {
+      const msg = error.code === "23505" ? "Nama menu sudah dipakai produk lain." : error.message;
+      onChanged({ type: "err", text: msg });
+      return;
+    }
+    onChanged({ type: "ok", text: "Menu diperbarui. Perubahan berlaku untuk penjualan berikutnya." });
+  }
+
+  async function removeMenu() {
+    if (!confirm(`Hapus menu "${menu.name}"? Tindakan ini tidak bisa dibatalkan.`)) return;
+    const { error } = await supabase.from("menu_items").delete().eq("id", menu.id);
+    if (error) {
+      const msg =
+        error.code === "23503"
+          ? "Menu ini sudah pernah terjual, jadi tidak bisa dihapus (supaya laporan lama tidak berubah). Pakai tombol Sembunyikan saja."
+          : error.message;
+      onChanged({ type: "err", text: msg });
+      return;
+    }
+    onChanged({ type: "ok", text: "Menu dihapus." });
   }
 
   async function toggleActive() {
@@ -201,6 +225,10 @@ function MenuEditor({
         <PhotoUpload value={menu.photo_url} onChange={savePhoto} pathPrefix={menu.id} />
       </div>
 
+      <div>
+        <Label>Nama menu</Label>
+        <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>Harga jual (Rp)</Label>
@@ -211,8 +239,11 @@ function MenuEditor({
           <input className={inputCls} value={category} onChange={(e) => setCategory(e.target.value)} />
         </div>
       </div>
+      <button className={`${btnGhostCls} w-full`} onClick={toggleActive}>
+        {menu.is_active ? "Sembunyikan dari halaman Jual" : "Tampilkan di halaman Jual"}
+      </button>
       <div className="grid grid-cols-2 gap-3">
-        <button className={btnGhostCls} onClick={toggleActive}>{menu.is_active ? "Sembunyikan" : "Tampilkan"}</button>
+        <button className={`${btnGhostCls} text-red-700`} onClick={removeMenu}>Hapus menu</button>
         <button className={btnCls} onClick={saveInfo}>Simpan</button>
       </div>
 

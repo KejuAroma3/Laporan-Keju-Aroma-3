@@ -8,7 +8,7 @@ import { Card, Label, Notice, PageTitle, btnCls, inputCls, type Msg } from "@/co
 import { Thumb } from "@/components/BestSellerList";
 
 type Line = { qty: number; price: number };
-const ONLINE_CHANNELS: Channel[] = ["gofood", "grabfood", "shopeefood"];
+const RECAP_CHANNELS: Channel[] = ["offline", "gofood", "grabfood", "shopeefood"];
 
 export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const online = mode === "online";
@@ -99,11 +99,13 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
       <PageTitle
         sub={
           online
-            ? "Masukkan rekap satu hari dari dashboard merchant."
+            ? channel === "offline"
+              ? "Catat penjualan offline, bisa untuk tanggal yang sudah lewat."
+              : "Masukkan rekap satu hari dari dashboard merchant."
             : "Ketuk menu untuk menambah pesanan."
         }
       >
-        {online ? "Rekap penjualan online" : "Catat penjualan"}
+        {online ? "Rekap penjualan" : "Catat penjualan"}
       </PageTitle>
       <Notice msg={msg} />
 
@@ -111,11 +113,11 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
         <Card className="mb-4 space-y-3">
           <div>
             <Label>Platform</Label>
-            <div className="grid grid-cols-3 gap-2">
-              {ONLINE_CHANNELS.map((c) => (
+            <div className="grid grid-cols-2 gap-2">
+              {RECAP_CHANNELS.map((c) => (
                 <button
                   key={c}
-                  onClick={() => setChannel(c)}
+                  onClick={() => { setChannel(c); if (c === "offline") setFee(""); }}
                   className={`h-12 rounded-xl border text-sm font-semibold ${
                     channel === c
                       ? "border-teal-700 bg-teal-700 text-white"
@@ -193,7 +195,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                   </div>
                   {online && l && (
                     <div className="mt-3">
-                      <Label>Harga jual di aplikasi (per porsi)</Label>
+                      <Label>{channel === "offline" ? "Harga jual (per porsi)" : "Harga jual di aplikasi (per porsi)"}</Label>
                       <input
                         type="number"
                         inputMode="numeric"
@@ -211,7 +213,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
       ))}
 
       <Card className="sticky bottom-20 z-10 space-y-3 border-stone-300 shadow-lg">
-        <div className="grid grid-cols-2 gap-3">
+        <div className={`grid gap-3 ${online && channel !== "offline" ? "grid-cols-2" : "grid-cols-1"}`}>
           <div>
             <Label>Diskon (Rp)</Label>
             <input
@@ -223,7 +225,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
               placeholder="0"
             />
           </div>
-          {online && (
+          {online && channel !== "offline" && (
             <div>
               <Label>Komisi + promo platform (Rp)</Label>
               <input

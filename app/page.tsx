@@ -114,7 +114,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <PageTitle sub="Ringkasan hari ini dan produk paling banyak terjual.">Beranda</PageTitle>
+      <PageTitle back={false} sub="Ringkasan hari ini dan produk paling banyak terjual.">Beranda</PageTitle>
       <Notice msg={msg} />
 
       <div className="mb-4 grid grid-cols-2 gap-3">

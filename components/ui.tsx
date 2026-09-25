@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import BackButton from "@/components/BackButton";
 
 export type Msg = { type: "ok" | "err"; text: string } | null;
 
@@ -9,10 +10,21 @@ export const btnCls =
 export const btnGhostCls =
   "h-12 rounded-xl border border-stone-300 bg-white px-5 text-base font-medium text-stone-700 active:bg-stone-100 disabled:opacity-50";
 
-export function PageTitle({ children, sub }: { children: ReactNode; sub?: string }) {
+export function PageTitle({
+  children,
+  sub,
+  back = true,
+}: {
+  children: ReactNode;
+  sub?: string;
+  back?: boolean;
+}) {
   return (
     <div className="mb-4">
-      <h1 className="text-2xl font-bold tracking-tight">{children}</h1>
+      <div className="flex items-center gap-2">
+        {back && <BackButton />}
+        <h1 className="text-2xl font-bold tracking-tight">{children}</h1>
+      </div>
       {sub && <p className="mt-1 text-sm text-stone-500">{sub}</p>}
     </div>
   );
