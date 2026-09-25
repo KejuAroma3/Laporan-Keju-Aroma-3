@@ -156,6 +156,17 @@ function MenuEditor({
   const [qty, setQty] = useState("");
   const sel = ings.find((i) => i.id === ing);
 
+  // Fungsi pembantu untuk membaca teks matematika seperti "490 / 140"
+  function parseMathInput(val: string): number {
+    try {
+      const sanitized = val.replace(/,/g, '.').replace(/[^0-9+\-*/().]/g, '');
+      const result = Function('"use strict";return (' + sanitized + ')')();
+      return isNaN(result) ? 0 : result;
+    } catch {
+      return 0;
+    }
+  }
+
   async function savePhoto(url: string | null) {
     const { error } = await supabase.from("menu_items").update({ photo_url: url }).eq("id", menu.id);
     onChanged(error ? { type: "err", text: error.message } : { type: "ok", text: url ? "Foto tersimpan." : "Foto dihapus." });
@@ -198,13 +209,14 @@ function MenuEditor({
   }
 
   async function addLine() {
-    if (!ing || !(Number(qty) > 0)) {
-      onChanged({ type: "err", text: "Pilih bahan dan isi jumlah per porsi." });
+    const calculatedQty = parseMathInput(qty);
+    if (!ing || !(calculatedQty > 0)) {
+      onChanged({ type: "err", text: "Pilih bahan dan isi jumlah per porsi dengan benar." });
       return;
     }
     const { error } = await supabase
       .from("recipe_items")
-      .upsert({ menu_item_id: menu.id, ingredient_id: ing, qty: Number(qty) }, { onConflict: "menu_item_id,ingredient_id" });
+      .upsert({ menu_item_id: menu.id, ingredient_id: ing, qty: calculatedQty }, { onConflict: "menu_item_id,ingredient_id" });
     if (!error) { setIng(""); setQty(""); }
     onChanged(error ? { type: "err", text: error.message } : { type: "ok", text: "Resep diperbarui." });
   }
@@ -279,12 +291,12 @@ function MenuEditor({
           ))}
         </select>
         <input
-          type="number"
+          type="text"
           inputMode="decimal"
           className={inputCls}
           value={qty}
           onChange={(e) => setQty(e.target.value)}
-          placeholder={sel ? `Jumlah per porsi (${sel.unit})` : "Jumlah per porsi"}
+          placeholder={sel ? `Jumlah per porsi (${sel.unit}), cth: 490/140` : "Jumlah per porsi (bisa ketik 490/140)"}
         />
         <button className={`${btnCls} w-full`} onClick={addLine}>Tambah ke resep</button>
       </div>
