@@ -120,7 +120,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                   onClick={() => { setChannel(c); if (c === "offline") setFee(""); }}
                   className={`h-12 rounded-xl border text-sm font-semibold ${
                     channel === c
-                      ? "border-teal-700 bg-teal-700 text-white"
+                      ? "border-brand-700 bg-brand-700 text-white"
                       : "border-stone-300 bg-white text-stone-700"
                   }`}
                 >
@@ -162,7 +162,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
             {items.map((m) => {
               const l = cart[m.id];
               return (
-                <Card key={m.id} className={l ? "border-teal-600" : ""}>
+                <Card key={m.id} className={l ? "border-brand-600" : ""}>
                   <div className="flex items-center gap-3">
                     <Thumb url={m.photo_url} name={m.name} size={44} />
                     <div className="min-w-0 flex-1">
@@ -186,7 +186,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                       )}
                       <button
                         onClick={() => change(m, 1)}
-                        className="h-11 w-11 rounded-full bg-teal-700 text-xl text-white active:bg-teal-800"
+                        className="h-11 w-11 rounded-full bg-brand-700 text-xl text-white active:bg-brand-800"
                         aria-label={`Tambah ${m.name}`}
                       >
                         +

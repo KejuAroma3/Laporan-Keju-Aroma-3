@@ -7,13 +7,21 @@ import { supabase } from "@/lib/supabase";
 import { Card, Label, Notice, PageTitle, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 
 const LINKS = [
-  { href: "/sales/new", title: "Penjualan offline", desc: "Catat transaksi tunai atau QRIS di tempat" },
-  { href: "/sales/online-recap", title: "Rekap penjualan", desc: "Offline, GoFood, GrabFood, ShopeeFood — bisa untuk tanggal yang sudah lewat" },
-  { href: "/menu", title: "Menu dan resep", desc: "Harga jual, resep, foto produk, dan estimasi margin" },
-  { href: "/ingredients", title: "Bahan baku", desc: "Daftar bahan, satuan, batas stok minimum" },
-  { href: "/expenses", title: "Biaya operasional", desc: "Sewa, gaji, listrik, gas, dan lainnya" },
-  { href: "/staff", title: "Karyawan", desc: "Tambah akun staf, ubah email dan kata sandi" },
+  { href: "/sales/online-recap", title: "Rekap penjualan", desc: "Offline, GoFood, GrabFood, ShopeeFood — bisa untuk tanggal yang sudah lewat", icon: "🧾" },
+  { href: "/menu", title: "Menu dan resep", desc: "Harga jual, resep, foto produk, dan estimasi margin", icon: "🍽️" },
+  { href: "/ingredients", title: "Bahan baku", desc: "Daftar bahan, satuan, batas stok minimum", icon: "🧀" },
+  { href: "/expenses", title: "Biaya operasional", desc: "Sewa, gaji, listrik, gas, dan lainnya", icon: "💰" },
+  { href: "/staff", title: "Karyawan", desc: "Tambah akun staf, ubah email dan kata sandi", icon: "👥" },
+  { href: "/settings", title: "Pengaturan", desc: "Nama usaha, logo, dan warna tema aplikasi", icon: "⚙️" },
 ];
+
+function MenuIcon({ icon }: { icon: string }) {
+  return (
+    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-xl">
+      {icon}
+    </span>
+  );
+}
 
 export default function MorePage() {
   const router = useRouter();
@@ -29,9 +37,12 @@ export default function MorePage() {
       <div className="space-y-2">
         {LINKS.map((l) => (
           <Link key={l.href} href={l.href} className="block">
-            <Card className="active:bg-stone-50">
-              <div className="font-semibold">{l.title}</div>
-              <div className="text-sm text-stone-500">{l.desc}</div>
+            <Card className="flex items-center gap-3 active:bg-stone-50">
+              <MenuIcon icon={l.icon} />
+              <div className="min-w-0">
+                <div className="font-semibold">{l.title}</div>
+                <div className="text-sm text-stone-500">{l.desc}</div>
+              </div>
             </Card>
           </Link>
         ))}
@@ -39,8 +50,8 @@ export default function MorePage() {
 
       <ChangePassword />
 
-      <button className={`${btnGhostCls} mt-6 w-full`} onClick={logout}>
-        Keluar
+      <button className={`${btnGhostCls} mt-6 flex w-full items-center justify-center gap-2`} onClick={logout}>
+        <span>🚪</span> Keluar
       </button>
     </div>
   );
@@ -66,12 +77,13 @@ function ChangePassword() {
 
   return (
     <Card className="mt-4">
-      <button className="flex w-full items-center justify-between text-left" onClick={() => setOpen((v) => !v)}>
-        <div>
+      <button className="flex w-full items-center gap-3 text-left" onClick={() => setOpen((v) => !v)}>
+        <MenuIcon icon="🔑" />
+        <div className="min-w-0 flex-1">
           <div className="font-semibold">Ubah kata sandi saya</div>
           <div className="text-sm text-stone-500">Untuk akun yang sedang Anda pakai</div>
         </div>
-        <span className="text-sm text-teal-800">{open ? "Tutup" : "Ubah"}</span>
+        <span className="shrink-0 text-sm text-brand-800">{open ? "Tutup" : "Ubah"}</span>
       </button>
       {open && (
         <div className="mt-4 space-y-3 border-t border-stone-100 pt-4">

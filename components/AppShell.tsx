@@ -55,7 +55,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
               key={n.href}
               href={n.href}
               className={`flex flex-1 flex-col items-center justify-center gap-0.5 text-xs font-medium ${
-                isActive(n.match) ? "text-teal-800" : "text-stone-500"
+                isActive(n.match) ? "text-brand-800" : "text-stone-500"
               }`}
             >
               <span className="text-xl leading-none">{n.icon}</span>

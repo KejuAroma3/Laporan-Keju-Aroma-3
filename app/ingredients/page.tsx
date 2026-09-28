@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmt, rupiah } from "@/lib/format";
 import type { StockRow, Unit } from "@/lib/types";
-import { Card, Empty, Label, Notice, PageTitle, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
+import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
+import IngredientEditor from "@/components/IngredientEditor";
 
 export default function IngredientsPage() {
   const [rows, setRows] = useState<StockRow[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [q, setQ] = useState("");
   const [name, setName] = useState("");
   const [unit, setUnit] = useState("");
   const [min, setMin] = useState("");
@@ -29,6 +31,11 @@ export default function IngredientsPage() {
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
+
+  const filtered = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    return term ? rows.filter((r) => r.name.toLowerCase().includes(term)) : rows;
+  }, [rows, q]);
 
   async function add() {
     if (!name.trim()) {
@@ -87,28 +94,35 @@ export default function IngredientsPage() {
       {rows.length === 0 ? (
         <Empty>Belum ada bahan.</Empty>
       ) : (
-        <div className="space-y-2">
-          {rows.map((r) => (
-            <Card key={r.id}>
-              <button className="flex w-full items-center justify-between text-left" onClick={() => setOpen(open === r.id ? null : r.id)}>
-                <div>
-                  <div className="font-semibold">{r.name}</div>
-                  <div className="text-sm text-stone-500">
-                    Sisa {fmt(r.on_hand)} {r.unit}, {rupiah(r.avg_cost)} per {r.unit}
-                  </div>
-                </div>
-                <span className="text-sm text-teal-800">{open === r.id ? "Tutup" : "Ubah"}</span>
-              </button>
-              {open === r.id && (
-                <EditIngredient
-                  row={r}
-                  units={units}
-                  onSaved={(m) => { setMsg(m); setOpen(null); load(); }}
-                />
-              )}
-            </Card>
-          ))}
-        </div>
+        <>
+          <SearchInput value={q} onChange={setQ} placeholder="Cari bahan…" />
+          {filtered.length === 0 ? (
+            <Empty>Tidak ada bahan yang cocok dengan pencarian.</Empty>
+          ) : (
+            <ScrollList className="space-y-2">
+              {filtered.map((r) => (
+                <Card key={r.id}>
+                  <button className="flex w-full items-center justify-between text-left" onClick={() => setOpen(open === r.id ? null : r.id)}>
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold">{r.name}</div>
+                      <div className="text-sm text-stone-500">
+                        Sisa {fmt(r.on_hand)} {r.unit}, {rupiah(r.avg_cost)} per {r.unit}
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-sm text-brand-800">{open === r.id ? "Tutup" : "Ubah"}</span>
+                  </button>
+                  {open === r.id && (
+                    <IngredientEditor
+                      row={r}
+                      units={units}
+                      onSaved={(m) => { setMsg(m); setOpen(null); load(); }}
+                    />
+                  )}
+                </Card>
+              ))}
+            </ScrollList>
+          )}
+        </>
       )}
     </div>
   );
@@ -164,16 +178,16 @@ function UnitsManager({ units, onChanged }: { units: Unit[]; onChanged: (m: Msg)
     <Card className="mb-4">
       <button className="flex w-full items-center justify-between text-left" onClick={() => setOpen((v) => !v)}>
         <div className="font-semibold">Kelola satuan</div>
-        <span className="text-sm text-teal-800">{open ? "Tutup" : "Buka"}</span>
+        <span className="text-sm text-brand-800">{open ? "Tutup" : "Buka"}</span>
       </button>
       {open && (
         <div className="mt-4 space-y-3 border-t border-stone-100 pt-4">
           {units.length === 0 ? (
             <Empty>Belum ada satuan. Tambahkan di bawah.</Empty>
           ) : (
-            <ul className="divide-y divide-stone-100">
+            <ScrollList className="divide-y divide-stone-100" maxHeight="16rem">
               {units.map((u) => (
-                <li key={u.id} className="py-2">
+                <div key={u.id} className="py-2">
                   {editId === u.id ? (
                     <div className="flex gap-2">
                       <input
@@ -194,7 +208,7 @@ function UnitsManager({ units, onChanged }: { units: Unit[]; onChanged: (m: Msg)
                       <span className="font-medium">{u.name}</span>
                       <div className="flex gap-3">
                         <button
-                          className="font-medium text-teal-800"
+                          className="font-medium text-brand-800"
                           onClick={() => { setEditId(u.id); setEditName(u.name); }}
                         >
                           Ubah
@@ -205,9 +219,9 @@ function UnitsManager({ units, onChanged }: { units: Unit[]; onChanged: (m: Msg)
                       </div>
                     </div>
                   )}
-                </li>
+                </div>
               ))}
-            </ul>
+            </ScrollList>
           )}
           <div className="flex gap-2">
             <input
@@ -223,59 +237,5 @@ function UnitsManager({ units, onChanged }: { units: Unit[]; onChanged: (m: Msg)
         </div>
       )}
     </Card>
-  );
-}
-
-function EditIngredient({
-  row,
-  units,
-  onSaved,
-}: {
-  row: StockRow;
-  units: Unit[];
-  onSaved: (m: Msg) => void;
-}) {
-  const [name, setName] = useState(row.name);
-  const [unit, setUnit] = useState(row.unit);
-  const [min, setMin] = useState(String(row.min_stock));
-  // pastikan satuan yang sedang dipakai tetap muncul, walau sudah dihapus dari daftar
-  const unitOptions = Array.from(new Set([row.unit, ...units.map((u) => u.name)]));
-
-  async function save() {
-    const { error } = await supabase
-      .from("ingredients")
-      .update({ name: name.trim(), unit, min_stock: Number(min) || 0 })
-      .eq("id", row.id);
-    onSaved(error ? { type: "err", text: error.code === "23505" ? "Nama bahan sudah dipakai." : error.message } : { type: "ok", text: "Perubahan tersimpan." });
-  }
-
-  return (
-    <div className="mt-4 space-y-3 border-t border-stone-100 pt-4">
-      <div>
-        <Label>Nama bahan</Label>
-        <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label>Satuan</Label>
-          <select className={inputCls} value={unit} onChange={(e) => setUnit(e.target.value)}>
-            {unitOptions.map((u) => (
-              <option key={u}>{u}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <Label>Stok minimum</Label>
-          <input type="number" inputMode="decimal" className={inputCls} value={min} onChange={(e) => setMin(e.target.value)} />
-        </div>
-      </div>
-      <p className="text-xs text-stone-500">
-        Mengubah satuan di sini tidak mengonversi jumlah stok lama. Ubah hanya jika satuan salah sejak awal.
-      </p>
-      <div className="grid grid-cols-2 gap-3">
-        <button className={btnGhostCls} onClick={() => onSaved(null)}>Batal</button>
-        <button className={btnCls} onClick={save}>Simpan</button>
-      </div>
-    </div>
   );
 }

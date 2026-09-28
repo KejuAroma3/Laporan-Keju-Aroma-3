@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { fmt, pct, rupiah } from "@/lib/format";
 import type { Ingredient, MenuItem, RecipeItem } from "@/lib/types";
-import { Card, Empty, Label, Notice, PageTitle, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
+import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
 import PhotoUpload from "@/components/PhotoUpload";
 
@@ -14,6 +14,7 @@ export default function MenuPage() {
   const [ings, setIngs] = useState<Ingredient[]>([]);
   const [recipes, setRecipes] = useState<RecipeItem[]>([]);
   const [open, setOpen] = useState<string | null>(null);
+  const [q, setQ] = useState("");
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [price, setPrice] = useState("");
@@ -38,6 +39,12 @@ export default function MenuPage() {
     recipes
       .filter((r) => r.menu_item_id === id)
       .reduce((s, r) => s + r.qty * (ings.find((i) => i.id === r.ingredient_id)?.avg_cost ?? 0), 0);
+
+  const filtered = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    if (!term) return menus;
+    return menus.filter((m) => m.name.toLowerCase().includes(term) || (m.category ?? "").toLowerCase().includes(term));
+  }, [menus, q]);
 
   async function add() {
     if (!name.trim() || !(Number(price) > 0)) {
@@ -93,8 +100,13 @@ export default function MenuPage() {
       {menus.length === 0 ? (
         <Empty>Belum ada menu.</Empty>
       ) : (
-        <div className="space-y-2">
-          {menus.map((m) => {
+        <>
+          <SearchInput value={q} onChange={setQ} placeholder="Cari menu…" />
+          {filtered.length === 0 ? (
+            <Empty>Tidak ada menu yang cocok dengan pencarian.</Empty>
+          ) : (
+            <ScrollList className="space-y-2">
+              {filtered.map((m) => {
             const hpp = cost(m.id);
             const hasRecipe = recipes.some((r) => r.menu_item_id === m.id);
             return (
@@ -113,7 +125,7 @@ export default function MenuPage() {
                     {hasRecipe ? (
                       <>
                         <div className="font-semibold tabular-nums">HPP {rupiah(hpp)}</div>
-                        <div className="text-teal-800">margin {pct(m.price - hpp, m.price)}</div>
+                        <div className="text-brand-800">margin {pct(m.price - hpp, m.price)}</div>
                       </>
                     ) : (
                       <div className="font-medium text-amber-700">Resep kosong</div>
@@ -130,9 +142,11 @@ export default function MenuPage() {
                   />
                 )}
               </Card>
-            );
-          })}
-        </div>
+                );
+              })}
+            </ScrollList>
+          )}
+        </>
       )}
     </div>
   );
@@ -155,17 +169,6 @@ function MenuEditor({
   const [ing, setIng] = useState("");
   const [qty, setQty] = useState("");
   const sel = ings.find((i) => i.id === ing);
-
-  // Fungsi pembantu untuk membaca teks matematika seperti "490 / 140"
-  function parseMathInput(val: string): number {
-    try {
-      const sanitized = val.replace(/,/g, '.').replace(/[^0-9+\-*/().]/g, '');
-      const result = Function('"use strict";return (' + sanitized + ')')();
-      return isNaN(result) ? 0 : result;
-    } catch {
-      return 0;
-    }
-  }
 
   async function savePhoto(url: string | null) {
     const { error } = await supabase.from("menu_items").update({ photo_url: url }).eq("id", menu.id);
@@ -209,14 +212,13 @@ function MenuEditor({
   }
 
   async function addLine() {
-    const calculatedQty = parseMathInput(qty);
-    if (!ing || !(calculatedQty > 0)) {
-      onChanged({ type: "err", text: "Pilih bahan dan isi jumlah per porsi dengan benar." });
+    if (!ing || !(Number(qty) > 0)) {
+      onChanged({ type: "err", text: "Pilih bahan dan isi jumlah per porsi." });
       return;
     }
     const { error } = await supabase
       .from("recipe_items")
-      .upsert({ menu_item_id: menu.id, ingredient_id: ing, qty: calculatedQty }, { onConflict: "menu_item_id,ingredient_id" });
+      .upsert({ menu_item_id: menu.id, ingredient_id: ing, qty: Number(qty) }, { onConflict: "menu_item_id,ingredient_id" });
     if (!error) { setIng(""); setQty(""); }
     onChanged(error ? { type: "err", text: error.message } : { type: "ok", text: "Resep diperbarui." });
   }
@@ -291,12 +293,12 @@ function MenuEditor({
           ))}
         </select>
         <input
-          type="text"
+          type="number"
           inputMode="decimal"
           className={inputCls}
           value={qty}
           onChange={(e) => setQty(e.target.value)}
-          placeholder={sel ? `Jumlah per porsi (${sel.unit}), cth: 490/140` : "Jumlah per porsi (bisa ketik 490/140)"}
+          placeholder={sel ? `Jumlah per porsi (${sel.unit})` : "Jumlah per porsi"}
         />
         <button className={`${btnCls} w-full`} onClick={addLine}>Tambah ke resep</button>
       </div>

@@ -1,4 +1,4 @@
-# Kafe Stok
+# Keju Aroma Tiga — Aplikasi Stok dan Penjualan
 
 Aplikasi web (bisa dipasang di HP) untuk stok masuk/keluar, penjualan offline dan
 online (GoFood/GrabFood/ShopeeFood), menu terlaris, dan laporan keuangan.
@@ -21,7 +21,8 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
 ## Database (Supabase, SQL Editor)
 
 1. Database baru/kosong: jalankan berurutan `supabase/1-skema.sql`, `supabase/2-tambahan.sql`,
-   `supabase/3-foto-dan-dashboard.sql`, `supabase/4-karyawan.sql`, lalu `supabase/5-satuan-bahan.sql`.
+   `supabase/3-foto-dan-dashboard.sql`, `supabase/4-karyawan.sql`, `supabase/5-satuan-bahan.sql`,
+   lalu `supabase/6-pengaturan-aplikasi.sql` (butuh tabel dari langkah karyawan).
 2. Sudah pernah menjalankan skema sebelumnya: cukup jalankan file yang belum pernah dijalankan,
    urut dari nomor terkecil. Semua file aman dijalankan berulang.
 3. Authentication > Users: buat akun untuk Anda dan staf.
@@ -60,6 +61,23 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
   mencatat Offline, GoFood, GrabFood, atau ShopeeFood, termasuk untuk tanggal yang sudah
   lewat. Kolom komisi platform otomatis disembunyikan saat memilih Offline.
 
+## Tampilan
+
+- **Pengaturan** (Lainnya > Pengaturan, hanya pemilik): ubah nama usaha, tagline di layar
+  masuk, logo, dan warna tema langsung dari aplikasi — tidak perlu ubah kode lagi. Warna
+  yang dipilih otomatis dipakai untuk semua tombol, tab aktif, dan badge di seluruh
+  aplikasi. Setelah menyimpan, muat ulang aplikasi supaya perubahan tampil di semua
+  halaman (termasuk ikon di layar utama HP, yang mungkin baru terlihat setelah pasang
+  ulang aplikasi tergantung HP-nya).
+- Ikon aplikasi bawaan (sebelum logo sendiri diunggah) ada di `public/icons/`,
+  `app/icon.png`, dan `app/apple-icon.png` jika ingin diganti langsung lewat kode.
+- Login: ada tombol "Ingat email saya" yang menyimpan alamat email di perangkat supaya
+  tidak perlu diketik ulang. Kata sandi tidak disimpan oleh aplikasi ini demi keamanan;
+  browser biasanya menawarkan sendiri untuk menyimpannya.
+- Semua menu di Lainnya sudah diberi ikon, dan daftar yang panjang (bahan baku, menu,
+  biaya, karyawan) sekarang punya kotak pencarian dan area gulir sendiri, supaya
+  halaman utama tidak ikut memanjang.
+
 ## Fitur
 
 - **Beranda**: produk paling banyak terjual, dengan tab Harian / Mingguan / Bulanan dan
@@ -83,3 +101,7 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
 - **Satuan bahan baku**: di halaman Bahan baku, buka "Kelola satuan" untuk menambah,
   mengganti nama, atau menghapus pilihan satuan (gram, ml, pcs, dan sebagainya). Mengganti
   nama satuan ikut memperbarui bahan yang sudah memakainya.
+- **Perbaiki harga bahan**: buka bahan apa pun (lewat Bahan baku atau Stok > Sisa) untuk
+  mengubah langsung "Harga rata-rata saat ini". Dipakai untuk memperbaiki kesalahan input,
+  bukan untuk mencatat pembelian baru (pakai Stok > Masuk untuk itu). Perubahan ini tidak
+  mengubah laporan penjualan yang sudah lewat.

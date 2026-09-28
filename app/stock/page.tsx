@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmt, rupiah } from "@/lib/format";
-import type { StockRow } from "@/lib/types";
-import { Card, Empty, Label, Notice, PageTitle, Tabs, btnCls, inputCls, type Msg } from "@/components/ui";
+import type { StockRow, Unit } from "@/lib/types";
+import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, Tabs, btnCls, inputCls, type Msg } from "@/components/ui";
+import IngredientEditor from "@/components/IngredientEditor";
 
 type Tab = "sisa" | "masuk" | "keluar" | "opname";
 type Done = (m: Msg) => void;
@@ -12,12 +13,18 @@ type Done = (m: Msg) => void;
 export default function StockPage() {
   const [tab, setTab] = useState<Tab>("sisa");
   const [rows, setRows] = useState<StockRow[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
   const [msg, setMsg] = useState<Msg>(null);
 
   async function load() {
-    const { data, error } = await supabase.from("v_stock").select("*").order("name");
-    if (error) setMsg({ type: "err", text: error.message });
-    else setRows((data ?? []) as StockRow[]);
+    const [i, u] = await Promise.all([
+      supabase.from("v_stock").select("*").order("name"),
+      supabase.from("units").select("*").order("name"),
+    ]);
+    const err = [i, u].find((x) => x.error)?.error;
+    if (err) setMsg({ type: "err", text: err.message });
+    setRows((i.data ?? []) as StockRow[]);
+    setUnits((u.data ?? []) as Unit[]);
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
@@ -41,7 +48,7 @@ export default function StockPage() {
         ]}
       />
       <Notice msg={msg} />
-      {tab === "sisa" && <StockList rows={rows} />}
+      {tab === "sisa" && <StockList rows={rows} units={units} onDone={done} />}
       {tab === "masuk" && <PurchaseForm rows={rows} onDone={done} />}
       {tab === "keluar" && <WasteForm rows={rows} onDone={done} />}
       {tab === "opname" && <OpnameForm rows={rows} onDone={done} />}
@@ -49,37 +56,55 @@ export default function StockPage() {
   );
 }
 
-function StockList({ rows }: { rows: StockRow[] }) {
+function StockList({ rows, units, onDone }: { rows: StockRow[]; units: Unit[]; onDone: Done }) {
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState<string | null>(null);
+
   if (rows.length === 0) return <Empty>Belum ada bahan. Tambahkan di Lainnya › Bahan baku.</Empty>;
   const value = rows.reduce((s, r) => s + Math.max(0, r.on_hand) * r.avg_cost, 0);
   const sorted = [...rows].sort((a, b) => Number(b.is_low) - Number(a.is_low) || a.name.localeCompare(b.name));
+  const term = q.trim().toLowerCase();
+  const filtered = term ? sorted.filter((r) => r.name.toLowerCase().includes(term)) : sorted;
+
   return (
     <div>
       <Card className="mb-3">
         <div className="text-sm text-stone-500">Nilai persediaan saat ini</div>
         <div className="text-xl font-bold tabular-nums">{rupiah(value)}</div>
       </Card>
-      <div className="space-y-2">
-        {sorted.map((r) => (
-          <Card key={r.id} className={r.is_low ? "border-red-300" : ""}>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="font-semibold">{r.name}</div>
-                <div className="text-sm text-stone-500">
-                  {rupiah(r.avg_cost)} per {r.unit}, minimum {fmt(r.min_stock)} {r.unit}
+      <SearchInput value={q} onChange={setQ} placeholder="Cari bahan…" />
+      {filtered.length === 0 ? (
+        <Empty>Tidak ada bahan yang cocok dengan pencarian.</Empty>
+      ) : (
+        <ScrollList className="space-y-2">
+          {filtered.map((r) => (
+            <Card key={r.id} className={r.is_low ? "border-red-300" : ""}>
+              <button className="flex w-full items-center justify-between gap-3 text-left" onClick={() => setOpen(open === r.id ? null : r.id)}>
+                <div className="min-w-0">
+                  <div className="truncate font-semibold">{r.name}</div>
+                  <div className="text-sm text-stone-500">
+                    {rupiah(r.avg_cost)} per {r.unit}, minimum {fmt(r.min_stock)} {r.unit}
+                  </div>
                 </div>
-              </div>
-              <div className="text-right">
-                <div className={`text-lg font-bold tabular-nums ${r.is_low ? "text-red-700" : ""}`}>
-                  {fmt(r.on_hand)}
+                <div className="shrink-0 text-right">
+                  <div className={`text-lg font-bold tabular-nums ${r.is_low ? "text-red-700" : ""}`}>
+                    {fmt(r.on_hand)}
+                  </div>
+                  <div className="text-xs text-stone-500">{r.unit}</div>
                 </div>
-                <div className="text-xs text-stone-500">{r.unit}</div>
-              </div>
-            </div>
-            {r.is_low && <div className="mt-2 text-xs font-semibold text-red-700">Stok menipis, segera belanja.</div>}
-          </Card>
-        ))}
-      </div>
+              </button>
+              {r.is_low && <div className="mt-2 text-xs font-semibold text-red-700">Stok menipis, segera belanja.</div>}
+              {open === r.id && (
+                <IngredientEditor
+                  row={r}
+                  units={units}
+                  onSaved={(m) => { onDone(m); setOpen(null); }}
+                />
+              )}
+            </Card>
+          ))}
+        </ScrollList>
+      )}
     </div>
   );
 }
@@ -222,6 +247,7 @@ function WasteForm({ rows, onDone }: { rows: StockRow[]; onDone: Done }) {
 }
 
 function OpnameForm({ rows, onDone }: { rows: StockRow[]; onDone: Done }) {
+  const [q, setQ] = useState("");
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
@@ -249,44 +275,52 @@ function OpnameForm({ rows, onDone }: { rows: StockRow[]; onDone: Done }) {
   }
 
   if (rows.length === 0) return <Empty>Belum ada bahan.</Empty>;
+  const term = q.trim().toLowerCase();
+  const filtered = term ? rows.filter((r) => r.name.toLowerCase().includes(term)) : rows;
+  const filledCount = Object.values(counts).filter((v) => v !== "").length;
 
   return (
     <div>
       <p className="mb-3 text-sm text-stone-500">
         Hitung stok fisik, isi hanya bahan yang dihitung. Selisih dengan stok sistem otomatis dicatat sebagai penyesuaian.
       </p>
-      <div className="space-y-2">
-        {rows.map((r) => {
-          const v = counts[r.id];
-          const diff = v === undefined || v === "" ? null : Number(v) - r.on_hand;
-          return (
-            <Card key={r.id}>
-              <div className="mb-2 flex justify-between text-sm">
-                <span className="font-semibold">{r.name}</span>
-                <span className="tabular-nums text-stone-500">
-                  Sistem: {fmt(r.on_hand)} {r.unit}
-                </span>
-              </div>
-              <input
-                type="number"
-                inputMode="decimal"
-                className={inputCls}
-                placeholder={`Stok fisik (${r.unit})`}
-                value={v ?? ""}
-                onChange={(e) => setCounts({ ...counts, [r.id]: e.target.value })}
-              />
-              {diff !== null && Math.abs(diff) >= 0.0001 && (
-                <p className={`mt-1 text-sm font-medium ${diff < 0 ? "text-red-700" : "text-teal-800"}`}>
-                  Selisih {diff > 0 ? "+" : ""}
-                  {fmt(diff)} {r.unit} ({rupiah(diff * r.avg_cost)})
-                </p>
-              )}
-            </Card>
-          );
-        })}
-      </div>
-      <button className={`${btnCls} mt-4 w-full`} onClick={save} disabled={busy}>
-        {busy ? "Menyimpan…" : "Simpan hasil opname"}
+      <SearchInput value={q} onChange={setQ} placeholder="Cari bahan…" />
+      {filtered.length === 0 ? (
+        <Empty>Tidak ada bahan yang cocok dengan pencarian.</Empty>
+      ) : (
+        <ScrollList className="space-y-2">
+          {filtered.map((r) => {
+            const v = counts[r.id];
+            const diff = v === undefined || v === "" ? null : Number(v) - r.on_hand;
+            return (
+              <Card key={r.id}>
+                <div className="mb-2 flex justify-between text-sm">
+                  <span className="font-semibold">{r.name}</span>
+                  <span className="tabular-nums text-stone-500">
+                    Sistem: {fmt(r.on_hand)} {r.unit}
+                  </span>
+                </div>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  className={inputCls}
+                  placeholder={`Stok fisik (${r.unit})`}
+                  value={v ?? ""}
+                  onChange={(e) => setCounts({ ...counts, [r.id]: e.target.value })}
+                />
+                {diff !== null && Math.abs(diff) >= 0.0001 && (
+                  <p className={`mt-1 text-sm font-medium ${diff < 0 ? "text-red-700" : "text-brand-800"}`}>
+                    Selisih {diff > 0 ? "+" : ""}
+                    {fmt(diff)} {r.unit} ({rupiah(diff * r.avg_cost)})
+                  </p>
+                )}
+              </Card>
+            );
+          })}
+        </ScrollList>
+      )}
+      <button className={`${btnCls} mt-4 w-full`} onClick={save} disabled={busy || filledCount === 0}>
+        {busy ? "Menyimpan…" : `Simpan hasil opname${filledCount > 0 ? ` (${filledCount} bahan)` : ""}`}
       </button>
     </div>
   );

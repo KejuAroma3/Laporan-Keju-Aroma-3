@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { authHeader, loadRole, type RoleState } from "@/lib/authClient";
-import { Card, Empty, Label, Notice, PageTitle, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
+import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 
 type Staff = { id: string; email: string; full_name: string | null; role: "owner" | "staff"; created_at: string };
 
@@ -19,6 +19,7 @@ async function api(path: string, init?: RequestInit) {
 export default function StaffPage() {
   const [roleState, setRoleState] = useState<RoleState>({ status: "loading" });
   const [staff, setStaff] = useState<Staff[]>([]);
+  const [q, setQ] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
@@ -38,6 +39,14 @@ export default function StaffPage() {
       if (r.status === "ready" && r.role === "owner") load();
     });
   }, []);
+
+  const filteredStaff = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    if (!term) return staff;
+    return staff.filter(
+      (s) => (s.full_name ?? "").toLowerCase().includes(term) || s.email.toLowerCase().includes(term)
+    );
+  }, [staff, q]);
 
   if (roleState.status === "loading") {
     return <p className="py-8 text-center text-sm text-stone-500">Memuat…</p>;
@@ -112,8 +121,13 @@ export default function StaffPage() {
       {staff.length === 0 ? (
         <Empty>Belum ada data karyawan.</Empty>
       ) : (
-        <div className="space-y-2">
-          {staff.map((s) => (
+        <>
+          <SearchInput value={q} onChange={setQ} placeholder="Cari nama atau email…" />
+          {filteredStaff.length === 0 ? (
+            <Empty>Tidak ada karyawan yang cocok dengan pencarian.</Empty>
+          ) : (
+            <ScrollList className="space-y-2">
+              {filteredStaff.map((s) => (
             <Card key={s.id}>
               <button className="flex w-full items-center justify-between gap-3 text-left" onClick={() => setOpen(open === s.id ? null : s.id)}>
                 <div className="min-w-0">
@@ -122,7 +136,7 @@ export default function StaffPage() {
                 </div>
                 <span
                   className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${
-                    s.role === "owner" ? "bg-teal-100 text-teal-800" : "bg-stone-100 text-stone-600"
+                    s.role === "owner" ? "bg-brand-100 text-brand-800" : "bg-stone-100 text-stone-600"
                   }`}
                 >
                   {s.role === "owner" ? "Pemilik" : "Staf"}
@@ -138,8 +152,10 @@ export default function StaffPage() {
                 />
               )}
             </Card>
-          ))}
-        </div>
+              ))}
+            </ScrollList>
+          )}
+        </>
       )}
     </div>
   );
@@ -190,7 +206,7 @@ function AddStaff({ onDone }: { onDone: (m: Msg) => void }) {
               type="button"
               onClick={() => setRoleVal(r)}
               className={`h-11 rounded-xl border text-sm font-semibold ${
-                role === r ? "border-teal-700 bg-teal-700 text-white" : "border-stone-300 bg-white text-stone-700"
+                role === r ? "border-brand-700 bg-brand-700 text-white" : "border-stone-300 bg-white text-stone-700"
               }`}
             >
               {r === "staff" ? "Staf" : "Pemilik"}
@@ -266,7 +282,7 @@ function EditStaff({ staff, onDone }: { staff: Staff; onDone: (m: Msg) => void }
               type="button"
               onClick={() => setRoleVal(r)}
               className={`h-11 rounded-xl border text-sm font-semibold ${
-                role === r ? "border-teal-700 bg-teal-700 text-white" : "border-stone-300 bg-white text-stone-700"
+                role === r ? "border-brand-700 bg-brand-700 text-white" : "border-stone-300 bg-white text-stone-700"
               }`}
             >
               {r === "staff" ? "Staf" : "Pemilik"}

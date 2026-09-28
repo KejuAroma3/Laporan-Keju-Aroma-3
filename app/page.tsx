@@ -125,11 +125,11 @@ export default function Dashboard() {
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3">
-        <Link href="/sales/new" className="flex h-14 items-center justify-center rounded-xl bg-teal-700 font-semibold text-white active:bg-teal-800">
-          Catat penjualan
+        <Link href="/sales/new" className="flex h-14 items-center justify-center gap-2 rounded-xl bg-brand-700 font-semibold text-white active:bg-brand-800">
+          <span>🧾</span> Catat penjualan
         </Link>
-        <Link href="/stock" className="flex h-14 items-center justify-center rounded-xl border border-stone-300 bg-white font-semibold active:bg-stone-100">
-          Catat belanja bahan
+        <Link href="/stock" className="flex h-14 items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white font-semibold active:bg-stone-100">
+          <span>📦</span> Catat belanja bahan
         </Link>
       </div>
 

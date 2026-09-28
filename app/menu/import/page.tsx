@@ -171,7 +171,7 @@ export default function ImportMenuPage() {
 
       {result && (
         <Card className="space-y-3">
-          <p className="text-sm font-medium text-teal-800">
+          <p className="text-sm font-medium text-brand-800">
             {result.ok} produk berhasil ditambahkan atau diperbarui.
             {result.failed > 0 && ` ${result.failed} baris dilewati karena datanya tidak valid.`}
           </p>

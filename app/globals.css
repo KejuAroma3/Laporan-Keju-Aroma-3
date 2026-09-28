@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Warna tema bawaan (sama persis dengan warna teal-700 Tailwind).
+     app/layout.tsx menimpa nilai ini per permintaan sesuai warna yang
+     dipilih di menu Pengaturan, jadi variabel ini hanya dipakai sebagai
+     fallback (misalnya sebelum SQL pengaturan dijalankan). */
+  --brand-50: 240 253 250;
+  --brand-100: 204 251 241;
+  --brand-600: 13 148 136;
+  --brand-700: 15 118 110;
+  --brand-800: 17 94 89;
+  --brand-900: 19 78 74;
+}
+
 html {
   -webkit-tap-highlight-color: transparent;
 }

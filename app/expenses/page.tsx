@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { pct, rupiah, todayJkt } from "@/lib/format";
-import { Bar, Card, Empty, Label, Notice, PageTitle, btnCls, inputCls, type Msg } from "@/components/ui";
+import { Bar, Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, btnCls, inputCls, type Msg } from "@/components/ui";
 
 const CATEGORIES = ["Sewa", "Gaji", "Listrik", "Gas", "Air", "Internet", "Kemasan", "Marketing", "Perawatan dan perbaikan", "Lainnya"];
 
@@ -18,6 +18,7 @@ function monthRange(ym: string) {
 export default function ExpensesPage() {
   const [month, setMonth] = useState(todayJkt().slice(0, 7));
   const [rows, setRows] = useState<Expense[]>([]);
+  const [q, setQ] = useState("");
   const [date, setDate] = useState(todayJkt());
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [amount, setAmount] = useState("");
@@ -69,6 +70,11 @@ export default function ExpensesPage() {
   const byCat = Object.entries(
     rows.reduce<Record<string, number>>((m, r) => ({ ...m, [r.category]: (m[r.category] ?? 0) + r.amount }), {})
   ).sort((a, b) => b[1] - a[1]);
+  const filteredRows = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter((r) => r.category.toLowerCase().includes(term) || (r.note ?? "").toLowerCase().includes(term));
+  }, [rows, q]);
 
   return (
     <div>
@@ -129,24 +135,29 @@ export default function ExpensesPage() {
 
       {rows.length > 0 && (
         <Card>
-          <ul className="divide-y divide-stone-100">
-            {rows.map((r) => (
-              <li key={r.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                <div className="min-w-0">
-                  <div className="font-medium">{r.category}</div>
-                  <div className="truncate text-stone-500">
-                    {r.spent_on}{r.note ? `, ${r.note}` : ""}
+          <SearchInput value={q} onChange={setQ} placeholder="Cari kategori atau catatan…" />
+          {filteredRows.length === 0 ? (
+            <Empty>Tidak ada transaksi yang cocok dengan pencarian.</Empty>
+          ) : (
+            <ScrollList className="divide-y divide-stone-100">
+              {filteredRows.map((r) => (
+                <div key={r.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <div className="font-medium">{r.category}</div>
+                    <div className="truncate text-stone-500">
+                      {r.spent_on}{r.note ? `, ${r.note}` : ""}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="font-semibold tabular-nums">{rupiah(r.amount)}</span>
+                    <button className="h-10 px-2 text-red-700" onClick={() => remove(r.id)} aria-label="Hapus biaya">
+                      Hapus
+                    </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className="font-semibold tabular-nums">{rupiah(r.amount)}</span>
-                  <button className="h-10 px-2 text-red-700" onClick={() => remove(r.id)} aria-label="Hapus biaya">
-                    Hapus
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+              ))}
+            </ScrollList>
+          )}
         </Card>
       )}
     </div>
