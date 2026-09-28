@@ -22,7 +22,8 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
 
 1. Database baru/kosong: jalankan berurutan `supabase/1-skema.sql`, `supabase/2-tambahan.sql`,
    `supabase/3-foto-dan-dashboard.sql`, `supabase/4-karyawan.sql`, `supabase/5-satuan-bahan.sql`,
-   lalu `supabase/6-pengaturan-aplikasi.sql` (butuh tabel dari langkah karyawan).
+   `supabase/6-pengaturan-aplikasi.sql` (butuh tabel dari langkah karyawan), lalu
+   `supabase/7-tanggal-belanja.sql` (mengganti fungsi record_purchase; jangan jalankan ulang 1-skema.sql sesudahnya).
 2. Sudah pernah menjalankan skema sebelumnya: cukup jalankan file yang belum pernah dijalankan,
    urut dari nomor terkecil. Semua file aman dijalankan berulang.
 3. Authentication > Users: buat akun untuk Anda dan staf.
@@ -84,6 +85,18 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
 - **Satuan bahan baku**: di halaman Bahan baku, buka "Kelola satuan" untuk menambah,
   mengganti nama, atau menghapus pilihan satuan (gram, ml, pcs, dan sebagainya). Mengganti
   nama satuan ikut memperbarui bahan yang sudah memakainya.
+- **Tanggal belanja** (Stok > Masuk): kolom tanggal, awalnya hari ini. Ubah untuk mencatat nota
+  yang sudah lewat, dan Laporan > Belanja memakai tanggal itu. Tanggal masa depan ditolak. Butuh
+  `supabase/7-tanggal-belanja.sql`; tanpa itu, pencatatan hari ini tetap jalan tetapi tanggal
+  yang sudah lewat akan menampilkan pesan agar SQL-nya dijalankan. Harga rata-rata dihitung
+  dari stok saat nota diinput, jadi mencatat nota lama tidak mengubah HPP penjualan yang sudah lewat.
+- **Laporan belanja** (Laporan > Belanja): total belanja bahan baku pada periode yang dipilih,
+  jumlah transaksi, dan jumlah jenis bahan. Tampilan "Per bahan" mengurutkan bahan dari
+  pengeluaran terbesar (jumlah pembelian, total jumlah, harga rata-rata, dan persentase), dan
+  bisa dibuka untuk melihat tiap transaksinya. Tampilan "Semua transaksi" menampilkan daftar
+  urut waktu lengkap dengan catatan nota. Ada pencarian dan tombol unduh CSV. Tombol "Semua"
+  di atas laporan menampilkan sepanjang waktu. Tanggal belanja adalah tanggal yang dipilih di
+  Stok > Masuk (pembelian lama sebelum ada kolom tanggal memakai tanggal saat dicatat). Reset stok menghapus riwayat pembelian bahan yang direset dari laporan ini.
 - **Koreksi harga bahan**: buka bahan apa pun (lewat Bahan baku atau Stok > Sisa), isi
   "Total harga beli" dan "Jumlah barang", lalu aplikasi menghitung harga rata-rata per satuan
   otomatis. Kosongkan keduanya jika harga tidak diubah. Ini hanya mengoreksi harga, tidak

@@ -69,7 +69,9 @@ export function Tabs<T extends string>({
         <button
           key={t.id}
           onClick={() => onChange(t.id)}
-          className={`h-10 flex-1 whitespace-nowrap rounded-lg px-2 text-sm font-semibold ${
+          className={`h-10 flex-1 whitespace-nowrap rounded-lg font-semibold ${
+            tabs.length > 4 ? "px-1.5 text-xs" : "px-2 text-sm"
+          } ${
             value === t.id ? "bg-white text-brand-800 shadow-sm" : "text-stone-600"
           }`}
         >

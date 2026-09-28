@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { fmt, rupiah } from "@/lib/format";
+import { fmt, labelDay, rupiah, todayJkt } from "@/lib/format";
 import type { StockRow, Unit } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, Tabs, btnCls, btnDangerCls, inputCls, type Msg } from "@/components/ui";
 import IngredientEditor from "@/components/IngredientEditor";
@@ -133,29 +133,52 @@ function PurchaseForm({ rows, onDone }: { rows: StockRow[]; onDone: Done }) {
   const [qty, setQty] = useState("");
   const [total, setTotal] = useState("");
   const [note, setNote] = useState("");
+  const [date, setDate] = useState(todayJkt());
   const [busy, setBusy] = useState(false);
   const sel = rows.find((r) => r.id === ing);
   const perUnit = Number(qty) > 0 ? Number(total) / Number(qty) : 0;
+  const today = todayJkt();
+  const backdated = date !== "" && date < today;
 
   async function save() {
     if (!ing || !(Number(qty) > 0) || !(Number(total) > 0)) {
       onDone({ type: "err", text: "Lengkapi bahan, jumlah, dan total harga." });
       return;
     }
+    if (!date || date > today) {
+      onDone({ type: "err", text: "Tanggal belanja tidak boleh kosong atau di masa depan." });
+      return;
+    }
     setBusy(true);
+    // Tanggal hanya dikirim untuk pembelian yang sudah lewat. Untuk hari ini, biarkan
+    // database memakai waktu saat ini, sehingga tetap jalan walau SQL tanggal belanja
+    // (supabase/7-tanggal-belanja.sql) belum dijalankan.
     const { error } = await supabase.rpc("record_purchase", {
       p_ingredient: ing,
       p_qty: Number(qty),
       p_total: Number(total),
       p_note: note || null,
+      ...(backdated ? { p_date: new Date(`${date}T12:00:00+07:00`).toISOString() } : {}),
     });
     setBusy(false);
     if (error) {
-      onDone({ type: "err", text: error.message });
+      const missing = error.code === "PGRST202" || /could not find the function/i.test(error.message);
+      onDone({
+        type: "err",
+        text:
+          backdated && missing
+            ? "Fitur tanggal belanja belum aktif. Jalankan supabase/7-tanggal-belanja.sql di Supabase (SQL Editor), lalu coba lagi."
+            : error.message,
+      });
       return;
     }
     setQty(""); setTotal(""); setNote("");
-    onDone({ type: "ok", text: "Pembelian tercatat. Stok bertambah." });
+    onDone({
+      type: "ok",
+      text: backdated
+        ? `Pembelian tercatat di tanggal ${labelDay(date)}. Stok bertambah.`
+        : "Pembelian tercatat. Stok bertambah.",
+    });
   }
 
   return (
@@ -179,6 +202,15 @@ function PurchaseForm({ rows, onDone }: { rows: StockRow[]; onDone: Done }) {
           <div className="mt-2 rounded-lg bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-900">
             Harga pembelian ini: {rupiah(perUnit)} per {sel.unit}
           </div>
+        )}
+      </div>
+      <div>
+        <Label>Tanggal belanja</Label>
+        <input type="date" className={inputCls} value={date} max={today} onChange={(e) => setDate(e.target.value)} />
+        {backdated && (
+          <p className="mt-1 text-xs font-medium text-amber-700">
+            Pembelian ini akan dicatat di tanggal {labelDay(date)}, bukan hari ini.
+          </p>
         )}
       </div>
       <div>

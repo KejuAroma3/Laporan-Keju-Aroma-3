@@ -6,8 +6,9 @@ import { CHANNEL_LABEL, daysAgoJkt, fmt, monthStartJkt, pct, rangeIso, rupiah, t
 import type { BestSeller, Channel, Pnl } from "@/lib/types";
 import { Bar, Card, Empty, Notice, PageTitle, Tabs, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import BestSellerList from "@/components/BestSellerList";
+import PurchaseReport, { type Purchase } from "@/components/PurchaseReport";
 
-type Tab = "terlaris" | "labarugi" | "biaya" | "channel";
+type Tab = "terlaris" | "labarugi" | "biaya" | "belanja" | "channel";
 type SortKey = "qty_sold" | "revenue" | "gross_profit";
 type ChannelRow = { channel: Channel; qty: number; gross: number; discounts: number; fees: number; cogs: number };
 type Move = { type: string; qty: number; unit_cost: number | null };
@@ -23,11 +24,12 @@ export default function ReportsPage() {
   const [chan, setChan] = useState<ChannelRow[]>([]);
   const [exp, setExp] = useState<Expense[]>([]);
   const [moves, setMoves] = useState<Move[]>([]);
+  const [buys, setBuys] = useState<Purchase[]>([]);
   const [msg, setMsg] = useState<Msg>(null);
 
   async function load() {
     const { start, end } = rangeIso(from, to);
-    const [b, p, c, e, m] = await Promise.all([
+    const [b, p, c, e, m, pu] = await Promise.all([
       supabase.rpc("report_best_sellers", { p_from: from, p_to: to }),
       supabase.rpc("report_pnl", { p_from: from, p_to: to }),
       supabase.rpc("report_channels", { p_from: from, p_to: to }),
@@ -38,14 +40,22 @@ export default function ReportsPage() {
         .in("type", ["purchase", "waste", "adjustment"])
         .gte("created_at", start)
         .lte("created_at", end),
+      supabase
+        .from("stock_movements")
+        .select("id, qty, unit_cost, note, created_at, ingredient_id, ingredients(name, unit)")
+        .eq("type", "purchase")
+        .gte("created_at", start)
+        .lte("created_at", end)
+        .order("created_at", { ascending: false }),
     ]);
-    const err = [b, p, c, e, m].find((x) => x.error)?.error;
+    const err = [b, p, c, e, m, pu].find((x) => x.error)?.error;
     setMsg(err ? { type: "err", text: err.message } : null);
     setBest((b.data ?? []) as BestSeller[]);
     setPnl(((p.data ?? []) as Pnl[])[0] ?? null);
     setChan((c.data ?? []) as ChannelRow[]);
     setExp((e.data ?? []) as Expense[]);
     setMoves((m.data ?? []) as Move[]);
+    setBuys((pu.data ?? []) as unknown as Purchase[]);
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [from, to]);
@@ -78,10 +88,11 @@ export default function ReportsPage() {
           <input type="date" className={inputCls} value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} aria-label="Dari tanggal" />
           <input type="date" className={inputCls} value={to} min={from} onChange={(e) => e.target.value && setTo(e.target.value)} aria-label="Sampai tanggal" />
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           <button className={`${btnGhostCls} h-10 px-2 text-sm`} onClick={() => setRange(todayJkt(), todayJkt())}>Hari ini</button>
           <button className={`${btnGhostCls} h-10 px-2 text-sm`} onClick={() => setRange(daysAgoJkt(6), todayJkt())}>7 hari</button>
           <button className={`${btnGhostCls} h-10 px-2 text-sm`} onClick={() => setRange(monthStartJkt(), todayJkt())}>Bulan ini</button>
+          <button className={`${btnGhostCls} h-10 px-2 text-sm`} onClick={() => setRange("2020-01-01", todayJkt())}>Semua</button>
         </div>
       </Card>
 
@@ -92,6 +103,7 @@ export default function ReportsPage() {
           { id: "terlaris", label: "Terlaris" },
           { id: "labarugi", label: "Laba rugi" },
           { id: "biaya", label: "Biaya" },
+          { id: "belanja", label: "Belanja" },
           { id: "channel", label: "Channel" },
         ]}
       />
@@ -160,6 +172,7 @@ export default function ReportsPage() {
             <Card>
               <div className="text-sm text-stone-500">Belanja bahan baku</div>
               <div className="text-lg font-bold tabular-nums">{rupiah(purchases)}</div>
+              <button className="mt-1 text-xs font-medium text-brand-800" onClick={() => setTab("belanja")}>Lihat rincian per bahan</button>
             </Card>
           </div>
           <Card>
@@ -187,6 +200,8 @@ export default function ReportsPage() {
           </Card>
         </div>
       )}
+
+      {tab === "belanja" && <PurchaseReport items={buys} from={from} to={to} />}
 
       {tab === "channel" && (
         <div className="space-y-3">
