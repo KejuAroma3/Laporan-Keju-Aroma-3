@@ -14,7 +14,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const online = mode === "online";
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [cart, setCart] = useState<Record<string, Line>>({});
-  const [channel, setChannel] = useState<Channel>(online ? "gofood" : "offline");
+  const [channel, setChannel] = useState<Channel>("offline");
   const [date, setDate] = useState(todayJkt());
   const [discount, setDiscount] = useState("");
   const [fee, setFee] = useState("");

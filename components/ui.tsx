@@ -7,6 +7,8 @@ export const inputCls =
   "h-12 w-full rounded-xl border border-stone-300 bg-white px-3 text-base outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-700/25";
 export const btnCls =
   "h-12 rounded-xl bg-brand-700 px-5 text-base font-semibold text-white active:bg-brand-800 disabled:opacity-50";
+export const btnDangerCls =
+  "h-12 rounded-xl bg-red-700 px-5 text-base font-semibold text-white active:bg-red-800 disabled:opacity-50";
 export const btnGhostCls =
   "h-12 rounded-xl border border-stone-300 bg-white px-5 text-base font-medium text-stone-700 active:bg-stone-100 disabled:opacity-50";
 
@@ -67,7 +69,7 @@ export function Tabs<T extends string>({
         <button
           key={t.id}
           onClick={() => onChange(t.id)}
-          className={`h-10 flex-1 whitespace-nowrap rounded-lg px-3 text-sm font-semibold ${
+          className={`h-10 flex-1 whitespace-nowrap rounded-lg px-2 text-sm font-semibold ${
             value === t.id ? "bg-white text-brand-800 shadow-sm" : "text-stone-600"
           }`}
         >

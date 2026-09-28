@@ -7,7 +7,6 @@ import { supabase } from "@/lib/supabase";
 import { Card, Label, Notice, PageTitle, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 
 const LINKS = [
-  { href: "/sales/online-recap", title: "Rekap penjualan", desc: "Offline, GoFood, GrabFood, ShopeeFood — bisa untuk tanggal yang sudah lewat", icon: "🧾" },
   { href: "/menu", title: "Menu dan resep", desc: "Harga jual, resep, foto produk, dan estimasi margin", icon: "🍽️" },
   { href: "/ingredients", title: "Bahan baku", desc: "Daftar bahan, satuan, batas stok minimum", icon: "🧀" },
   { href: "/expenses", title: "Biaya operasional", desc: "Sewa, gaji, listrik, gas, dan lainnya", icon: "💰" },

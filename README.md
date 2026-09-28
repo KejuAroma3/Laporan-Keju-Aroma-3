@@ -56,27 +56,10 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
 
 ## Halaman penjualan
 
-- **Jual** (navigasi bawah, `/sales/new`): kasir cepat untuk hari ini, dipakai sehari-hari.
-- **Rekap penjualan** (Lainnya > Rekap penjualan, `/sales/online-recap`): satu halaman untuk
-  mencatat Offline, GoFood, GrabFood, atau ShopeeFood, termasuk untuk tanggal yang sudah
-  lewat. Kolom komisi platform otomatis disembunyikan saat memilih Offline.
-
-## Tampilan
-
-- **Pengaturan** (Lainnya > Pengaturan, hanya pemilik): ubah nama usaha, tagline di layar
-  masuk, logo, dan warna tema langsung dari aplikasi — tidak perlu ubah kode lagi. Warna
-  yang dipilih otomatis dipakai untuk semua tombol, tab aktif, dan badge di seluruh
-  aplikasi. Setelah menyimpan, muat ulang aplikasi supaya perubahan tampil di semua
-  halaman (termasuk ikon di layar utama HP, yang mungkin baru terlihat setelah pasang
-  ulang aplikasi tergantung HP-nya).
-- Ikon aplikasi bawaan (sebelum logo sendiri diunggah) ada di `public/icons/`,
-  `app/icon.png`, dan `app/apple-icon.png` jika ingin diganti langsung lewat kode.
-- Login: ada tombol "Ingat email saya" yang menyimpan alamat email di perangkat supaya
-  tidak perlu diketik ulang. Kata sandi tidak disimpan oleh aplikasi ini demi keamanan;
-  browser biasanya menawarkan sendiri untuk menyimpannya.
-- Semua menu di Lainnya sudah diberi ikon, dan daftar yang panjang (bahan baku, menu,
-  biaya, karyawan) sekarang punya kotak pencarian dan area gulir sendiri, supaya
-  halaman utama tidak ikut memanjang.
+- **Rekap** (navigasi bawah, `/sales/online-recap`): satu-satunya halaman untuk mencatat
+  penjualan, baik Offline, GoFood, GrabFood, maupun ShopeeFood, termasuk untuk tanggal yang
+  sudah lewat. Platform awalnya Offline. Kolom komisi platform otomatis disembunyikan saat
+  memilih Offline. Halaman "Jual" yang lama sudah dihapus.
 
 ## Fitur
 
@@ -101,7 +84,14 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
 - **Satuan bahan baku**: di halaman Bahan baku, buka "Kelola satuan" untuk menambah,
   mengganti nama, atau menghapus pilihan satuan (gram, ml, pcs, dan sebagainya). Mengganti
   nama satuan ikut memperbarui bahan yang sudah memakainya.
-- **Perbaiki harga bahan**: buka bahan apa pun (lewat Bahan baku atau Stok > Sisa) untuk
-  mengubah langsung "Harga rata-rata saat ini". Dipakai untuk memperbaiki kesalahan input,
-  bukan untuk mencatat pembelian baru (pakai Stok > Masuk untuk itu). Perubahan ini tidak
-  mengubah laporan penjualan yang sudah lewat.
+- **Koreksi harga bahan**: buka bahan apa pun (lewat Bahan baku atau Stok > Sisa), isi
+  "Total harga beli" dan "Jumlah barang", lalu aplikasi menghitung harga rata-rata per satuan
+  otomatis. Kosongkan keduanya jika harga tidak diubah. Ini hanya mengoreksi harga, tidak
+  menambah stok dan tidak tercatat sebagai pembelian (pakai Stok > Masuk untuk itu). Laporan
+  penjualan yang sudah lewat tidak berubah.
+- **Reset stok** (Stok > Reset): mengulang input stok dari awal, untuk satu bahan atau semua
+  bahan. Stok jadi 0, harga rata-rata jadi Rp0, dan riwayat stok masuk/keluar/opname bahan
+  itu dihapus. Daftar bahan, resep, menu, penjualan, dan biaya tidak berubah. Selalu ada
+  dialog konfirmasi, dan reset semua bahan meminta mengetik RESET. Hanya pemilik yang bisa
+  mengakses tab ini. Catatan: pembatasan ini ada di tampilan aplikasi, belum diberlakukan
+  di database.
