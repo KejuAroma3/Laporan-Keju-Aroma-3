@@ -6,7 +6,7 @@ export type Msg = { type: "ok" | "err"; text: string } | null;
 export const inputCls =
   "h-12 w-full rounded-xl border border-stone-300 bg-white px-3 text-base outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-700/25";
 export const btnCls =
-  "h-12 rounded-xl bg-brand-700 px-5 text-base font-semibold text-white active:bg-brand-800 disabled:opacity-50";
+  "h-12 rounded-xl bg-brand-700 px-5 text-base font-semibold text-brand-fg active:bg-brand-800 disabled:opacity-50";
 export const btnDangerCls =
   "h-12 rounded-xl bg-red-700 px-5 text-base font-semibold text-white active:bg-red-800 disabled:opacity-50";
 export const btnGhostCls =

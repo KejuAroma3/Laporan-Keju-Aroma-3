@@ -116,7 +116,7 @@ export default function ReportsPage() {
               <button
                 key={k}
                 onClick={() => setSort(k)}
-                className={`h-10 rounded-lg border text-sm font-semibold ${sort === k ? "border-brand-700 bg-brand-700 text-white" : "border-stone-300 bg-white text-stone-700"}`}
+                className={`h-10 rounded-lg border text-sm font-semibold ${sort === k ? "border-brand-700 bg-brand-700 text-brand-fg" : "border-stone-300 bg-white text-stone-700"}`}
               >
                 {l}
               </button>

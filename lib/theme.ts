@@ -78,3 +78,21 @@ export function buildShades(hex: string): Record<Shade, string> {
 export function isValidHexColor(hex: string): boolean {
   return hexToRgb(hex) !== null;
 }
+
+// Memilih warna teks (putih atau nyaris hitam) yang kontrasnya paling
+// tinggi di atas warna tema pilihan pemilik, memakai rumus kontras WCAG.
+// Perlu supaya warna terang seperti kuning tetap terbaca saat dipakai
+// sebagai latar tombol dengan teks di atasnya.
+export function pickForegroundRgb(hex: string): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return "255 255 255";
+  const lin = (c: number) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  };
+  const [r, g, b] = rgb;
+  const l = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  const contrastWithWhite = 1.05 / (l + 0.05);
+  const contrastWithBlack = (l + 0.05) / 0.05;
+  return contrastWithWhite >= contrastWithBlack ? "255 255 255" : "23 23 23";
+}

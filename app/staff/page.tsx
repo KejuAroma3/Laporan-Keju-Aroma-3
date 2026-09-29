@@ -206,7 +206,7 @@ function AddStaff({ onDone }: { onDone: (m: Msg) => void }) {
               type="button"
               onClick={() => setRoleVal(r)}
               className={`h-11 rounded-xl border text-sm font-semibold ${
-                role === r ? "border-brand-700 bg-brand-700 text-white" : "border-stone-300 bg-white text-stone-700"
+                role === r ? "border-brand-700 bg-brand-700 text-brand-fg" : "border-stone-300 bg-white text-stone-700"
               }`}
             >
               {r === "staff" ? "Staf" : "Pemilik"}
@@ -282,7 +282,7 @@ function EditStaff({ staff, onDone }: { staff: Staff; onDone: (m: Msg) => void }
               type="button"
               onClick={() => setRoleVal(r)}
               className={`h-11 rounded-xl border text-sm font-semibold ${
-                role === r ? "border-brand-700 bg-brand-700 text-white" : "border-stone-300 bg-white text-stone-700"
+                role === r ? "border-brand-700 bg-brand-700 text-brand-fg" : "border-stone-300 bg-white text-stone-700"
               }`}
             >
               {r === "staff" ? "Staf" : "Pemilik"}

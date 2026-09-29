@@ -3,7 +3,7 @@ import "./globals.css";
 import AppShell from "@/components/AppShell";
 import RegisterSW from "@/components/RegisterSW";
 import { getSettings } from "@/lib/settings";
-import { buildShades } from "@/lib/theme";
+import { buildShades, pickForegroundRgb } from "@/lib/theme";
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSettings();
@@ -31,9 +31,10 @@ export async function generateViewport(): Promise<Viewport> {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const settings = await getSettings();
   const shades = buildShades(settings.theme_color);
+  const fg = pickForegroundRgb(settings.theme_color);
   const brandCss = `:root{${Object.entries(shades)
     .map(([k, v]) => `--brand-${k}:${v};`)
-    .join("")}}`;
+    .join("")}--brand-fg:${fg};}`;
 
   return (
     <html lang="id">

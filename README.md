@@ -23,7 +23,8 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
 1. Database baru/kosong: jalankan berurutan `supabase/1-skema.sql`, `supabase/2-tambahan.sql`,
    `supabase/3-foto-dan-dashboard.sql`, `supabase/4-karyawan.sql`, `supabase/5-satuan-bahan.sql`,
    `supabase/6-pengaturan-aplikasi.sql` (butuh tabel dari langkah karyawan), lalu
-   `supabase/7-tanggal-belanja.sql` (mengganti fungsi record_purchase; jangan jalankan ulang 1-skema.sql sesudahnya).
+   `supabase/7-tanggal-belanja.sql` (mengganti fungsi record_purchase; jangan jalankan ulang 1-skema.sql sesudahnya),
+   lalu `supabase/8-koreksi-penjualan.sql`.
 2. Sudah pernah menjalankan skema sebelumnya: cukup jalankan file yang belum pernah dijalankan,
    urut dari nomor terkecil. Semua file aman dijalankan berulang.
 3. Authentication > Users: buat akun untuk Anda dan staf.
@@ -60,7 +61,9 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
 - **Rekap** (navigasi bawah, `/sales/online-recap`): satu-satunya halaman untuk mencatat
   penjualan, baik Offline, GoFood, GrabFood, maupun ShopeeFood, termasuk untuk tanggal yang
   sudah lewat. Platform awalnya Offline. Kolom komisi platform otomatis disembunyikan saat
-  memilih Offline. Halaman "Jual" yang lama sudah dihapus.
+  memilih Offline. Halaman "Jual" yang lama sudah dihapus. Di bawah form pencatatan ada
+  daftar penjualan untuk platform dan tanggal yang dipilih, dengan tombol Ubah dan Hapus
+  untuk mengoreksi kesalahan input (butuh `supabase/8-koreksi-penjualan.sql`).
 
 ## Fitur
 
@@ -108,3 +111,6 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
   dialog konfirmasi, dan reset semua bahan meminta mengetik RESET. Hanya pemilik yang bisa
   mengakses tab ini. Catatan: pembatasan ini ada di tampilan aplikasi, belum diberlakukan
   di database.
+- **Kontras warna otomatis**: warna teks tombol (putih atau gelap) dipilih otomatis mengikuti
+  keterbacaan di atas warna tema yang dipilih di Pengaturan, supaya warna terang seperti
+  kuning tetap enak dibaca.

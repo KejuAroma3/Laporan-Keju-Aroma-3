@@ -15,6 +15,9 @@ module.exports = {
           700: "rgb(var(--brand-700) / <alpha-value>)",
           800: "rgb(var(--brand-800) / <alpha-value>)",
           900: "rgb(var(--brand-900) / <alpha-value>)",
+          // Warna teks yang otomatis dipilih (putih/hitam) supaya tetap
+          // terbaca di atas bg-brand-700, walau warna temanya terang.
+          fg: "rgb(var(--brand-fg) / <alpha-value>)",
         },
       },
     },

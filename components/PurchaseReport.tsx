@@ -99,7 +99,7 @@ export default function PurchaseReport({ items, from, to }: { items: Purchase[];
             key={id}
             onClick={() => setView(id)}
             className={`h-10 rounded-lg border text-sm font-semibold ${
-              view === id ? "border-brand-700 bg-brand-700 text-white" : "border-stone-300 bg-white text-stone-700"
+              view === id ? "border-brand-700 bg-brand-700 text-brand-fg" : "border-stone-300 bg-white text-stone-700"
             }`}
           >
             {label}
