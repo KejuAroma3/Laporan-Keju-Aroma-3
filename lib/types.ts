@@ -16,6 +16,22 @@ export type MenuItem = {
   price: number;
   is_active: boolean;
   photo_url: string | null;
+  track_stock: boolean;
+  avg_product_cost: number;
+  min_product_stock: number;
+};
+
+// Dari view v_product_stock: stok produk jadi per menu, dihitung dari
+// riwayat produksi/penjualan/waste/penyesuaian (product_movements).
+export type ProductStockRow = {
+  id: string;
+  name: string;
+  category: string | null;
+  track_stock: boolean;
+  avg_product_cost: number;
+  min_product_stock: number;
+  stock_on_hand: number;
+  is_low: boolean;
 };
 
 export type RecipeItem = {

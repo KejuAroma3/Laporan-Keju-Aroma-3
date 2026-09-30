@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { fmt, pct, rupiah } from "@/lib/format";
-import type { Ingredient, MenuItem, RecipeItem } from "@/lib/types";
+import type { Ingredient, MenuItem, ProductStockRow, RecipeItem } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
 import PhotoUpload from "@/components/PhotoUpload";
@@ -13,6 +13,7 @@ export default function MenuPage() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [ings, setIngs] = useState<Ingredient[]>([]);
   const [recipes, setRecipes] = useState<RecipeItem[]>([]);
+  const [stock, setStock] = useState<Record<string, ProductStockRow>>({});
   const [open, setOpen] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [name, setName] = useState("");
@@ -21,16 +22,20 @@ export default function MenuPage() {
   const [msg, setMsg] = useState<Msg>(null);
 
   async function load() {
-    const [m, i, r] = await Promise.all([
+    const [m, i, r, s] = await Promise.all([
       supabase.from("menu_items").select("*").order("category").order("name"),
       supabase.from("ingredients").select("*").order("name"),
       supabase.from("recipe_items").select("*"),
+      supabase.from("v_product_stock").select("*"), // boleh gagal jika supabase/9-stok-produk.sql belum dijalankan
     ]);
     const err = [m, i, r].find((x) => x.error)?.error;
     if (err) setMsg({ type: "err", text: err.message });
     setMenus((m.data ?? []) as MenuItem[]);
     setIngs((i.data ?? []) as Ingredient[]);
     setRecipes((r.data ?? []) as RecipeItem[]);
+    const stockMap: Record<string, ProductStockRow> = {};
+    for (const row of (s.data ?? []) as ProductStockRow[]) stockMap[row.id] = row;
+    setStock(stockMap);
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
@@ -107,8 +112,10 @@ export default function MenuPage() {
           ) : (
             <ScrollList className="space-y-2">
               {filtered.map((m) => {
-            const hpp = cost(m.id);
             const hasRecipe = recipes.some((r) => r.menu_item_id === m.id);
+            const st = stock[m.id];
+            const tracked = st?.track_stock ?? false;
+            const hpp = tracked ? m.avg_product_cost : cost(m.id);
             return (
               <Card key={m.id} className={m.is_active ? "" : "opacity-60"}>
                 <button className="flex w-full items-center gap-3 text-left" onClick={() => setOpen(open === m.id ? null : m.id)}>
@@ -120,12 +127,18 @@ export default function MenuPage() {
                     <div className="text-sm text-stone-500">
                       {m.category || "Tanpa kategori"}, {rupiah(m.price)}
                     </div>
+                    {tracked && (
+                      <div className={`text-xs font-medium ${st.is_low ? "text-red-700" : "text-stone-400"}`}>
+                        Stok produk: {fmt(st.stock_on_hand)} porsi{st.is_low ? ", segera produksi lagi" : ""}
+                      </div>
+                    )}
                   </div>
                   <div className="shrink-0 text-right text-sm">
                     {hasRecipe ? (
                       <>
                         <div className="font-semibold tabular-nums">HPP {rupiah(hpp)}</div>
                         <div className="text-brand-800">margin {pct(m.price - hpp, m.price)}</div>
+                        {tracked && <div className="text-xs text-stone-400">dari produksi</div>}
                       </>
                     ) : (
                       <div className="font-medium text-amber-700">Resep kosong</div>
@@ -166,6 +179,7 @@ function MenuEditor({
   const [name, setName] = useState(menu.name);
   const [price, setPrice] = useState(String(menu.price));
   const [category, setCategory] = useState(menu.category ?? "");
+  const [minStock, setMinStock] = useState(String(menu.min_product_stock));
   const [ing, setIng] = useState("");
   const [qty, setQty] = useState("");
   const sel = ings.find((i) => i.id === ing);
@@ -182,7 +196,12 @@ function MenuEditor({
     }
     const { error } = await supabase
       .from("menu_items")
-      .update({ name: name.trim(), price: Number(price) || 0, category: category.trim() || null })
+      .update({
+        name: name.trim(),
+        price: Number(price) || 0,
+        category: category.trim() || null,
+        min_product_stock: Number(minStock) || 0,
+      })
       .eq("id", menu.id);
     if (error) {
       const msg = error.code === "23505" ? "Nama menu sudah dipakai produk lain." : error.message;
@@ -239,6 +258,19 @@ function MenuEditor({
         <PhotoUpload value={menu.photo_url} onChange={savePhoto} pathPrefix={menu.id} />
       </div>
 
+      {menu.track_stock ? (
+        <p className="rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-900">
+          Menu ini memakai stok produk (HPP dari produksi, bukan estimasi resep). Catat produksi dan lihat
+          jumlah stoknya di <Link href="/production" className="underline">Lainnya › Produksi</Link>.
+        </p>
+      ) : (
+        <p className="rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-500">
+          Menu ini masih dibuat saat dipesan (bahan langsung terpotong tiap laku). Kalau menu ini sebenarnya
+          diproduksi dalam batch duluan, catat produksi pertamanya di{" "}
+          <Link href="/production" className="underline">Lainnya › Produksi</Link>.
+        </p>
+      )}
+
       <div>
         <Label>Nama menu</Label>
         <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
@@ -253,6 +285,13 @@ function MenuEditor({
           <input className={inputCls} value={category} onChange={(e) => setCategory(e.target.value)} />
         </div>
       </div>
+      {menu.track_stock && (
+        <div>
+          <Label>Stok produk minimum (porsi)</Label>
+          <input type="number" inputMode="decimal" className={inputCls} value={minStock} onChange={(e) => setMinStock(e.target.value)} placeholder="0" />
+          <p className="mt-1 text-xs text-stone-500">Diberi tanda "stok menipis" kalau stok produk turun sampai atau di bawah angka ini.</p>
+        </div>
+      )}
       <button className={`${btnGhostCls} w-full`} onClick={toggleActive}>
         {menu.is_active ? "Sembunyikan dari halaman Jual" : "Tampilkan di halaman Jual"}
       </button>

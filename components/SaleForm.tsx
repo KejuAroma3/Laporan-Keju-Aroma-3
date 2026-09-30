@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { CHANNEL_LABEL, rangeIso, rupiah, todayJkt } from "@/lib/format";
-import type { Channel, MenuItem } from "@/lib/types";
+import type { Channel, MenuItem, ProductStockRow } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
 
@@ -28,6 +28,7 @@ const grossOf = (s: HistorySale) => s.sale_items.reduce((sum, i) => sum + i.qty 
 export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const online = mode === "online";
   const [menus, setMenus] = useState<MenuItem[]>([]);
+  const [stock, setStock] = useState<Record<string, ProductStockRow>>({});
   const [cart, setCart] = useState<Record<string, Line>>({});
   const [channel, setChannel] = useState<Channel>("offline");
   const [date, setDate] = useState(todayJkt());
@@ -40,14 +41,15 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   async function load() {
-    const { data, error } = await supabase
-      .from("menu_items")
-      .select("*")
-      .eq("is_active", true)
-      .order("category")
-      .order("name");
-    if (error) setMsg({ type: "err", text: error.message });
-    else setMenus((data ?? []) as MenuItem[]);
+    const [m, s] = await Promise.all([
+      supabase.from("menu_items").select("*").eq("is_active", true).order("category").order("name"),
+      supabase.from("v_product_stock").select("*"), // boleh gagal jika supabase/9-stok-produk.sql belum dijalankan
+    ]);
+    if (m.error) setMsg({ type: "err", text: m.error.message });
+    else setMenus((m.data ?? []) as MenuItem[]);
+    const stockMap: Record<string, ProductStockRow> = {};
+    for (const row of (s.data ?? []) as ProductStockRow[]) stockMap[row.id] = row;
+    setStock(stockMap);
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
@@ -86,6 +88,9 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const lines = Object.entries(cart);
   const total = lines.reduce((s, [, l]) => s + l.qty * l.price, 0);
   const portions = lines.reduce((s, [, l]) => s + l.qty, 0);
+  const overStockItems = lines
+    .filter(([id, l]) => stock[id]?.track_stock && l.qty > (stock[id]?.stock_on_hand ?? 0))
+    .map(([id]) => menus.find((m) => m.id === id)?.name ?? "menu");
   const net = total - (Number(discount) || 0) - (Number(fee) || 0);
 
   const groups = useMemo(() => {
@@ -130,6 +135,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     }
     if (editingId === s.id) resetForm();
     setMsg({ type: "ok", text: "Penjualan dihapus, stok dikembalikan." });
+    load();
     loadHistory();
   }
 
@@ -176,6 +182,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     const wasEditing = Boolean(editingId);
     resetForm();
     setMsg({ type: "ok", text: `${wasEditing ? "Perubahan disimpan" : "Tersimpan"}. Pendapatan bersih ${rupiah(net)}.` });
+    load();
     loadHistory();
   }
 
@@ -257,6 +264,9 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
           <div className="space-y-2">
             {items.map((m) => {
               const l = cart[m.id];
+              const st = stock[m.id];
+              const tracked = st?.track_stock ?? false;
+              const overStock = tracked && l && l.qty > st.stock_on_hand;
               return (
                 <Card key={m.id} className={l ? "border-brand-600" : ""}>
                   <div className="flex items-center gap-3">
@@ -264,6 +274,11 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-semibold">{m.name}</div>
                       <div className="text-sm text-stone-500">{rupiah(m.price)}</div>
+                      {tracked && (
+                        <div className={`text-xs font-medium ${overStock ? "text-red-700" : "text-stone-400"}`}>
+                          Stok: {st.stock_on_hand} porsi
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       {l && (
@@ -309,6 +324,11 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
       ))}
 
       <Card className="sticky bottom-20 z-10 space-y-3 border-stone-300 shadow-lg">
+        {overStockItems.length > 0 && (
+          <p className="text-xs font-medium text-red-700">
+            Melebihi stok produk: {overStockItems.join(", ")}. Tetap bisa disimpan, tapi produksi lagi dulu kalau bisa.
+          </p>
+        )}
         <div className={`grid gap-3 ${online && channel !== "offline" ? "grid-cols-2" : "grid-cols-1"}`}>
           <div>
             <Label>Diskon (Rp)</Label>
