@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmt, labelDay, rupiah, todayJkt } from "@/lib/format";
+import { groupByCategory } from "@/lib/group";
 import type { StockRow, Unit } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, Tabs, btnCls, btnDangerCls, inputCls, type Msg } from "@/components/ui";
 import IngredientEditor from "@/components/IngredientEditor";
@@ -71,9 +72,13 @@ function StockList({ rows, units, onDone }: { rows: StockRow[]; units: Unit[]; o
 
   if (rows.length === 0) return <Empty>Belum ada bahan. Tambahkan di Lainnya › Bahan baku.</Empty>;
   const value = rows.reduce((s, r) => s + Math.max(0, r.on_hand) * r.avg_cost, 0);
-  const sorted = [...rows].sort((a, b) => Number(b.is_low) - Number(a.is_low) || a.name.localeCompare(b.name));
   const term = q.trim().toLowerCase();
-  const filtered = term ? sorted.filter((r) => r.name.toLowerCase().includes(term)) : sorted;
+  const searched = term ? rows.filter((r) => r.name.toLowerCase().includes(term)) : rows;
+  const grouped = groupByCategory(searched, (r) => r.category).map(
+    ([cat, items]) =>
+      [cat, [...items].sort((a, b) => Number(b.is_low) - Number(a.is_low) || a.name.localeCompare(b.name))] as const
+  );
+  const filtered = searched;
 
   return (
     <div>
@@ -85,32 +90,39 @@ function StockList({ rows, units, onDone }: { rows: StockRow[]; units: Unit[]; o
       {filtered.length === 0 ? (
         <Empty>Tidak ada bahan yang cocok dengan pencarian.</Empty>
       ) : (
-        <ScrollList className="space-y-2">
-          {filtered.map((r) => (
-            <Card key={r.id} className={r.is_low ? "border-red-300" : ""}>
-              <button className="flex w-full items-center justify-between gap-3 text-left" onClick={() => setOpen(open === r.id ? null : r.id)}>
-                <div className="min-w-0">
-                  <div className="truncate font-semibold">{r.name}</div>
-                  <div className="text-sm text-stone-500">
-                    {rupiah(r.avg_cost)} per {r.unit}, minimum {fmt(r.min_stock)} {r.unit}
-                  </div>
-                </div>
-                <div className="shrink-0 text-right">
-                  <div className={`text-lg font-bold tabular-nums ${r.is_low ? "text-red-700" : ""}`}>
-                    {fmt(r.on_hand)}
-                  </div>
-                  <div className="text-xs text-stone-500">{r.unit}</div>
-                </div>
-              </button>
-              {r.is_low && <div className="mt-2 text-xs font-semibold text-red-700">Stok menipis, segera belanja.</div>}
-              {open === r.id && (
-                <IngredientEditor
-                  row={r}
-                  units={units}
-                  onSaved={(m) => { onDone(m); setOpen(null); }}
-                />
-              )}
-            </Card>
+        <ScrollList className="space-y-4">
+          {grouped.map(([cat, items]) => (
+            <section key={cat}>
+              <h2 className="mb-2 text-sm font-semibold text-stone-500">{cat}</h2>
+              <div className="space-y-2">
+                {items.map((r) => (
+                  <Card key={r.id} className={r.is_low ? "border-red-300" : ""}>
+                    <button className="flex w-full items-center justify-between gap-3 text-left" onClick={() => setOpen(open === r.id ? null : r.id)}>
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold">{r.name}</div>
+                        <div className="text-sm text-stone-500">
+                          {rupiah(r.avg_cost)} per {r.unit}, minimum {fmt(r.min_stock)} {r.unit}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className={`text-lg font-bold tabular-nums ${r.is_low ? "text-red-700" : ""}`}>
+                          {fmt(r.on_hand)}
+                        </div>
+                        <div className="text-xs text-stone-500">{r.unit}</div>
+                      </div>
+                    </button>
+                    {r.is_low && <div className="mt-2 text-xs font-semibold text-red-700">Stok menipis, segera belanja.</div>}
+                    {open === r.id && (
+                      <IngredientEditor
+                        row={r}
+                        units={units}
+                        onSaved={(m) => { onDone(m); setOpen(null); }}
+                      />
+                    )}
+                  </Card>
+                ))}
+              </div>
+            </section>
           ))}
         </ScrollList>
       )}
@@ -119,13 +131,18 @@ function StockList({ rows, units, onDone }: { rows: StockRow[]; units: Unit[]; o
 }
 
 function IngredientSelect({ rows, value, onChange }: { rows: StockRow[]; value: string; onChange: (v: string) => void }) {
+  const grouped = groupByCategory(rows, (r) => r.category);
   return (
     <select className={inputCls} value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">Pilih bahan…</option>
-      {rows.map((r) => (
-        <option key={r.id} value={r.id}>
-          {r.name} ({r.unit})
-        </option>
+      {grouped.map(([cat, items]) => (
+        <optgroup key={cat} label={cat}>
+          {items.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name} ({r.unit})
+            </option>
+          ))}
+        </optgroup>
       ))}
     </select>
   );
@@ -322,6 +339,7 @@ function OpnameForm({ rows, onDone }: { rows: StockRow[]; onDone: Done }) {
   if (rows.length === 0) return <Empty>Belum ada bahan.</Empty>;
   const term = q.trim().toLowerCase();
   const filtered = term ? rows.filter((r) => r.name.toLowerCase().includes(term)) : rows;
+  const grouped = groupByCategory(filtered, (r) => r.category);
   const filledCount = Object.values(counts).filter((v) => v !== "").length;
 
   return (
@@ -333,35 +351,42 @@ function OpnameForm({ rows, onDone }: { rows: StockRow[]; onDone: Done }) {
       {filtered.length === 0 ? (
         <Empty>Tidak ada bahan yang cocok dengan pencarian.</Empty>
       ) : (
-        <ScrollList className="space-y-2">
-          {filtered.map((r) => {
-            const v = counts[r.id];
-            const diff = v === undefined || v === "" ? null : Number(v) - r.on_hand;
-            return (
-              <Card key={r.id}>
-                <div className="mb-2 flex justify-between text-sm">
-                  <span className="font-semibold">{r.name}</span>
-                  <span className="tabular-nums text-stone-500">
-                    Sistem: {fmt(r.on_hand)} {r.unit}
-                  </span>
-                </div>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  className={inputCls}
-                  placeholder={`Stok fisik (${r.unit})`}
-                  value={v ?? ""}
-                  onChange={(e) => setCounts({ ...counts, [r.id]: e.target.value })}
-                />
-                {diff !== null && Math.abs(diff) >= 0.0001 && (
-                  <p className={`mt-1 text-sm font-medium ${diff < 0 ? "text-red-700" : "text-brand-800"}`}>
-                    Selisih {diff > 0 ? "+" : ""}
-                    {fmt(diff)} {r.unit} ({rupiah(diff * r.avg_cost)})
-                  </p>
-                )}
-              </Card>
-            );
-          })}
+        <ScrollList className="space-y-4">
+          {grouped.map(([cat, items]) => (
+            <section key={cat}>
+              <h2 className="mb-2 text-sm font-semibold text-stone-500">{cat}</h2>
+              <div className="space-y-2">
+                {items.map((r) => {
+                  const v = counts[r.id];
+                  const diff = v === undefined || v === "" ? null : Number(v) - r.on_hand;
+                  return (
+                    <Card key={r.id}>
+                      <div className="mb-2 flex justify-between text-sm">
+                        <span className="font-semibold">{r.name}</span>
+                        <span className="tabular-nums text-stone-500">
+                          Sistem: {fmt(r.on_hand)} {r.unit}
+                        </span>
+                      </div>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        className={inputCls}
+                        placeholder={`Stok fisik (${r.unit})`}
+                        value={v ?? ""}
+                        onChange={(e) => setCounts({ ...counts, [r.id]: e.target.value })}
+                      />
+                      {diff !== null && Math.abs(diff) >= 0.0001 && (
+                        <p className={`mt-1 text-sm font-medium ${diff < 0 ? "text-red-700" : "text-brand-800"}`}>
+                          Selisih {diff > 0 ? "+" : ""}
+                          {fmt(diff)} {r.unit} ({rupiah(diff * r.avg_cost)})
+                        </p>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
         </ScrollList>
       )}
       <button className={`${btnCls} mt-4 w-full`} onClick={save} disabled={busy || filledCount === 0}>

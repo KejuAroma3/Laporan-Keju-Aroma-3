@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { fmt, pct, rupiah } from "@/lib/format";
+import { groupByCategory } from "@/lib/group";
 import type { Ingredient, MenuItem, ProductStockRow, RecipeItem } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
@@ -338,8 +339,12 @@ function MenuEditor({
       <div className="space-y-3 rounded-xl bg-stone-50 p-3">
         <select className={inputCls} value={ing} onChange={(e) => setIng(e.target.value)}>
           <option value="">Pilih bahan…</option>
-          {ings.map((i) => (
-            <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>
+          {groupByCategory(ings, (i) => i.category).map(([cat, items]) => (
+            <optgroup key={cat} label={cat}>
+              {items.map((i) => (
+                <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>
+              ))}
+            </optgroup>
           ))}
         </select>
         <input

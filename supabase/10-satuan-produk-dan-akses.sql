@@ -7,10 +7,7 @@
 
 alter table menu_items add column if not exists stock_unit text not null default 'pcs';
 
--- Hapus dulu view lama agar tidak error saat menambah kolom baru (stock_unit)
-drop view if exists v_product_stock;
-
-create view v_product_stock with (security_invoker = true) as
+create or replace view v_product_stock with (security_invoker = true) as
 select mi.id, mi.name, mi.category, mi.track_stock, mi.avg_product_cost, mi.min_product_stock,
        mi.stock_unit,
        coalesce(sum(pm.qty), 0) as stock_on_hand,
@@ -18,7 +15,7 @@ select mi.id, mi.name, mi.category, mi.track_stock, mi.avg_product_cost, mi.min_
 from menu_items mi
 left join product_movements pm on pm.menu_item_id = mi.id
 where mi.is_active = true
-group by mi.id, mi.name, mi.category, mi.track_stock, mi.avg_product_cost, mi.min_product_stock, mi.stock_unit;
+group by mi.id;
 
 grant select on v_product_stock to authenticated;
 notify pgrst, 'reload schema';

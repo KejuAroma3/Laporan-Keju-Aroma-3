@@ -176,8 +176,7 @@ begin
 end $$;
 
 -- ---------- Stok produk (dihitung dari riwayat, sama pola dengan v_stock) ----------
--- PERBAIKAN DI SINI: Menggunakan CREATE OR REPLACE VIEW
-create or replace view v_product_stock with (security_invoker = true) as
+create view v_product_stock with (security_invoker = true) as
 select mi.id, mi.name, mi.category, mi.track_stock, mi.avg_product_cost, mi.min_product_stock,
        coalesce(sum(pm.qty), 0) as stock_on_hand,
        mi.track_stock and coalesce(sum(pm.qty), 0) <= mi.min_product_stock as is_low

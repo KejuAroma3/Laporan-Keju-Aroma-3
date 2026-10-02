@@ -4,6 +4,7 @@ export type Ingredient = {
   id: string;
   name: string;
   unit: string;
+  category: string | null;
   min_stock: number;
   avg_cost: number;
   is_active: boolean;
@@ -46,6 +47,7 @@ export type StockRow = {
   id: string;
   name: string;
   unit: string;
+  category: string | null;
   min_stock: number;
   avg_cost: number;
   on_hand: number;

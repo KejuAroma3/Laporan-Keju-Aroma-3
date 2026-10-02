@@ -24,8 +24,8 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
    `supabase/3-foto-dan-dashboard.sql`, `supabase/4-karyawan.sql`, `supabase/5-satuan-bahan.sql`,
    `supabase/6-pengaturan-aplikasi.sql` (butuh tabel dari langkah karyawan), lalu
    `supabase/7-tanggal-belanja.sql` (mengganti fungsi record_purchase; jangan jalankan ulang 1-skema.sql sesudahnya),
-   `supabase/8-koreksi-penjualan.sql`, `supabase/9-stok-produk.sql`, lalu
-   `supabase/10-satuan-produk-dan-akses.sql`.
+   `supabase/8-koreksi-penjualan.sql`, `supabase/9-stok-produk.sql`, `supabase/10-satuan-produk-dan-akses.sql`, lalu
+   `supabase/11-kategori-bahan.sql`.
 2. Sudah pernah menjalankan skema sebelumnya: cukup jalankan file yang belum pernah dijalankan,
    urut dari nomor terkecil. Semua file aman dijalankan berulang.
 3. Authentication > Users: buat akun untuk Anda dan staf.
@@ -65,6 +65,14 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
   memilih Offline. Halaman "Jual" yang lama sudah dihapus. Di bawah form pencatatan ada
   daftar penjualan untuk platform dan tanggal yang dipilih, dengan tombol Ubah dan Hapus
   untuk mengoreksi kesalahan input (butuh `supabase/8-koreksi-penjualan.sql`).
+
+## Kategori bahan baku
+
+Di halaman Bahan baku, tiap bahan bisa diberi kategori (contoh: "Bahan baku", "Bahan
+kemasan", "Bahan habis pakai" — bebas ketik kategori lain juga). Daftar bahan di Bahan baku
+dan Stok bahan dikelompokkan per kategori, begitu juga dropdown pilih bahan di Stok (Masuk/
+Keluar/Opname) dan saat menyusun resep di Menu dan resep. Bahan tanpa kategori masuk
+kelompok "Tanpa kategori" di urutan paling akhir. Butuh `supabase/11-kategori-bahan.sql`.
 
 ## Pembagian akses pemilik vs staf
 

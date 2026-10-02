@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmt, rupiah } from "@/lib/format";
+import { groupByCategory, INGREDIENT_CATEGORY_SUGGESTIONS } from "@/lib/group";
 import type { StockRow, Unit } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import OwnerOnly from "@/components/OwnerOnly";
@@ -14,6 +15,7 @@ export default function IngredientsPage() {
   const [q, setQ] = useState("");
   const [name, setName] = useState("");
   const [unit, setUnit] = useState("");
+  const [category, setCategory] = useState("");
   const [min, setMin] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const [msg, setMsg] = useState<Msg>(null);
@@ -35,7 +37,8 @@ export default function IngredientsPage() {
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
-    return term ? rows.filter((r) => r.name.toLowerCase().includes(term)) : rows;
+    const list = term ? rows.filter((r) => r.name.toLowerCase().includes(term)) : rows;
+    return groupByCategory(list, (r) => r.category);
   }, [rows, q]);
 
   async function add() {
@@ -50,6 +53,7 @@ export default function IngredientsPage() {
     const { error } = await supabase.from("ingredients").insert({
       name: name.trim(),
       unit,
+      category: category.trim() || null,
       min_stock: Number(min) || 0,
     });
     if (error) {
@@ -72,6 +76,21 @@ export default function IngredientsPage() {
         <div>
           <Label>Nama bahan</Label>
           <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="Contoh: Biji kopi arabika" />
+        </div>
+        <div>
+          <Label>Kategori</Label>
+          <input
+            className={inputCls}
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            placeholder="Contoh: Bahan baku"
+            list="kategori-bahan"
+          />
+          <datalist id="kategori-bahan">
+            {INGREDIENT_CATEGORY_SUGGESTIONS.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -101,26 +120,33 @@ export default function IngredientsPage() {
           {filtered.length === 0 ? (
             <Empty>Tidak ada bahan yang cocok dengan pencarian.</Empty>
           ) : (
-            <ScrollList className="space-y-2">
-              {filtered.map((r) => (
-                <Card key={r.id}>
-                  <button className="flex w-full items-center justify-between text-left" onClick={() => setOpen(open === r.id ? null : r.id)}>
-                    <div className="min-w-0">
-                      <div className="truncate font-semibold">{r.name}</div>
-                      <div className="text-sm text-stone-500">
-                        Sisa {fmt(r.on_hand)} {r.unit}, {rupiah(r.avg_cost)} per {r.unit}
-                      </div>
-                    </div>
-                    <span className="shrink-0 text-sm text-brand-800">{open === r.id ? "Tutup" : "Ubah"}</span>
-                  </button>
-                  {open === r.id && (
-                    <IngredientEditor
-                      row={r}
-                      units={units}
-                      onSaved={(m) => { setMsg(m); setOpen(null); load(); }}
-                    />
-                  )}
-                </Card>
+            <ScrollList className="space-y-4">
+              {filtered.map(([cat, items]) => (
+                <section key={cat}>
+                  <h2 className="mb-2 text-sm font-semibold text-stone-500">{cat}</h2>
+                  <div className="space-y-2">
+                    {items.map((r) => (
+                      <Card key={r.id}>
+                        <button className="flex w-full items-center justify-between text-left" onClick={() => setOpen(open === r.id ? null : r.id)}>
+                          <div className="min-w-0">
+                            <div className="truncate font-semibold">{r.name}</div>
+                            <div className="text-sm text-stone-500">
+                              Sisa {fmt(r.on_hand)} {r.unit}, {rupiah(r.avg_cost)} per {r.unit}
+                            </div>
+                          </div>
+                          <span className="shrink-0 text-sm text-brand-800">{open === r.id ? "Tutup" : "Ubah"}</span>
+                        </button>
+                        {open === r.id && (
+                          <IngredientEditor
+                            row={r}
+                            units={units}
+                            onSaved={(m) => { setMsg(m); setOpen(null); load(); }}
+                          />
+                        )}
+                      </Card>
+                    ))}
+                  </div>
+                </section>
               ))}
             </ScrollList>
           )}

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { rupiah } from "@/lib/format";
+import { INGREDIENT_CATEGORY_SUGGESTIONS } from "@/lib/group";
 import type { StockRow, Unit } from "@/lib/types";
 import { Label, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 
@@ -20,6 +21,7 @@ export default function IngredientEditor({
 }) {
   const [name, setName] = useState(row.name);
   const [unit, setUnit] = useState(row.unit);
+  const [category, setCategory] = useState(row.category ?? "");
   const [min, setMin] = useState(String(row.min_stock));
   const [totalPrice, setTotalPrice] = useState("");
   const [boughtQty, setBoughtQty] = useState("");
@@ -47,6 +49,7 @@ export default function IngredientEditor({
     const payload: Record<string, unknown> = {
       name: name.trim(),
       unit,
+      category: category.trim() || null,
       min_stock: Number(min) || 0,
     };
     if (wantsPriceChange && newAvg !== null) payload.avg_cost = Math.round(newAvg * 10000) / 10000;
@@ -66,6 +69,21 @@ export default function IngredientEditor({
       <div>
         <Label>Nama bahan</Label>
         <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div>
+        <Label>Kategori</Label>
+        <input
+          className={inputCls}
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          placeholder="Contoh: Bahan baku"
+          list="kategori-bahan-edit"
+        />
+        <datalist id="kategori-bahan-edit">
+          {INGREDIENT_CATEGORY_SUGGESTIONS.map((c) => (
+            <option key={c} value={c} />
+          ))}
+        </datalist>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
