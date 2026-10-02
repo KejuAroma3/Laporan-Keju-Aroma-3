@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmt, rupiah } from "@/lib/format";
+import { loadRole } from "@/lib/authClient";
 import type { ProductStockRow } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, Tabs, btnCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
@@ -14,6 +15,11 @@ export default function ProductionPage() {
   const [tab, setTab] = useState<Tab>("stok");
   const [rows, setRows] = useState<ProductStockRow[]>([]);
   const [msg, setMsg] = useState<Msg>(null);
+  const [isOwner, setIsOwner] = useState(false);
+
+  useEffect(() => {
+    loadRole().then((r) => setIsOwner(r.status === "ready" && r.role === "owner"));
+  }, []);
 
   async function load() {
     const { data, error } = await supabase.from("v_product_stock").select("*").order("name");
@@ -54,14 +60,14 @@ export default function ProductionPage() {
         ]}
       />
       <Notice msg={msg} />
-      {tab === "stok" && <StockList rows={rows} />}
+      {tab === "stok" && <StockList rows={rows} showValue={isOwner} />}
       {tab === "produksi" && <ProduceForm rows={rows} onDone={done} />}
       {tab === "sesuaikan" && <AdjustForm rows={tracked} onDone={done} />}
     </div>
   );
 }
 
-function StockList({ rows }: { rows: ProductStockRow[] }) {
+function StockList({ rows, showValue }: { rows: ProductStockRow[]; showValue: boolean }) {
   const [q, setQ] = useState("");
   if (rows.length === 0) return <Empty>Belum ada menu. Tambahkan dulu di Menu dan resep.</Empty>;
 
@@ -71,10 +77,12 @@ function StockList({ rows }: { rows: ProductStockRow[] }) {
 
   return (
     <div>
-      <Card className="mb-3">
-        <div className="text-sm text-stone-500">Nilai stok produk jadi saat ini</div>
-        <div className="text-xl font-bold tabular-nums">{rupiah(value)}</div>
-      </Card>
+      {showValue && (
+        <Card className="mb-3">
+          <div className="text-sm text-stone-500">Nilai stok produk jadi saat ini</div>
+          <div className="text-xl font-bold tabular-nums">{rupiah(value)}</div>
+        </Card>
+      )}
       <SearchInput value={q} onChange={setQ} placeholder="Cari menu…" />
       {filtered.length === 0 ? (
         <Empty>Tidak ada menu yang cocok dengan pencarian.</Empty>
@@ -87,8 +95,9 @@ function StockList({ rows }: { rows: ProductStockRow[] }) {
                   <div className="truncate font-semibold">{r.name}</div>
                   {r.track_stock ? (
                     <div className="text-sm text-stone-500">
-                      HPP {rupiah(r.avg_product_cost)} per porsi
-                      {r.min_product_stock > 0 ? `, minimum ${fmt(r.min_product_stock)}` : ""}
+                      {showValue && `HPP ${rupiah(r.avg_product_cost)} per ${r.stock_unit}`}
+                      {showValue && r.min_product_stock > 0 ? `, minimum ${fmt(r.min_product_stock)}` : ""}
+                      {!showValue && r.min_product_stock > 0 ? `Minimum ${fmt(r.min_product_stock)} ${r.stock_unit}` : ""}
                     </div>
                   ) : (
                     <div className="text-sm text-stone-400">Belum pernah diproduksi</div>
@@ -98,7 +107,7 @@ function StockList({ rows }: { rows: ProductStockRow[] }) {
                   <div className={`text-lg font-bold tabular-nums ${r.is_low ? "text-red-700" : r.track_stock ? "" : "text-stone-300"}`}>
                     {r.track_stock ? fmt(r.stock_on_hand) : "–"}
                   </div>
-                  {r.track_stock && <div className="text-xs text-stone-500">porsi</div>}
+                  {r.track_stock && <div className="text-xs text-stone-500">{r.stock_unit}</div>}
                 </div>
               </div>
               {r.is_low && <div className="mt-2 text-xs font-semibold text-red-700">Stok menipis, segera produksi lagi.</div>}
@@ -165,7 +174,7 @@ function ProduceForm({ rows, onDone }: { rows: ProductStockRow[]; onDone: Done }
         <MenuSelect rows={rows} value={menu} onChange={setMenu} />
       </div>
       <div>
-        <Label>Jumlah diproduksi (porsi)</Label>
+        <Label>Jumlah diproduksi ({sel ? sel.stock_unit : "satuan"})</Label>
         <input type="number" inputMode="decimal" className={inputCls} value={qty} onChange={(e) => setQty(e.target.value)} placeholder="Contoh: 20" />
       </div>
       <div>
@@ -254,13 +263,13 @@ function AdjustForm({ rows, onDone }: { rows: ProductStockRow[]; onDone: Done })
         <div>
           <Label>Menu</Label>
           <MenuSelect rows={rows} value={menu} onChange={setMenu} />
-          {sel && <p className="mt-1 text-sm text-stone-500">Stok sistem sekarang: {fmt(sel.stock_on_hand)} porsi</p>}
+          {sel && <p className="mt-1 text-sm text-stone-500">Stok sistem sekarang: {fmt(sel.stock_on_hand)} {sel.stock_unit}</p>}
         </div>
 
         {mode === "waste" ? (
           <>
             <div>
-              <Label>Jumlah rusak/hilang (porsi)</Label>
+              <Label>Jumlah rusak/hilang ({sel ? sel.stock_unit : "satuan"})</Label>
               <input type="number" inputMode="decimal" className={inputCls} value={qty} onChange={(e) => setQty(e.target.value)} />
             </div>
             <div>
@@ -280,11 +289,11 @@ function AdjustForm({ rows, onDone }: { rows: ProductStockRow[]; onDone: Done })
         ) : (
           <>
             <div>
-              <Label>Jumlah stok fisik sebenarnya (porsi)</Label>
+              <Label>Jumlah stok fisik sebenarnya ({sel ? sel.stock_unit : "satuan"})</Label>
               <input type="number" inputMode="decimal" className={inputCls} value={physical} onChange={(e) => setPhysical(e.target.value)} />
               {diff !== null && Math.abs(diff) >= 0.0001 && (
                 <p className={`mt-1 text-sm font-medium ${diff < 0 ? "text-red-700" : "text-brand-800"}`}>
-                  Selisih {diff > 0 ? "+" : ""}{fmt(diff)} porsi
+                  Selisih {diff > 0 ? "+" : ""}{fmt(diff)} {sel?.stock_unit}
                 </p>
               )}
             </div>

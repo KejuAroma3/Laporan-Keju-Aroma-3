@@ -8,13 +8,13 @@ import { supabase } from "@/lib/supabase";
 const NAV = [
   { href: "/", label: "Beranda", icon: "🏠", match: ["/"] },
   { href: "/sales/online-recap", label: "Rekap", icon: "🧾", match: ["/sales/online-recap"] },
-  { href: "/stock", label: "Stok", icon: "📦", match: ["/stock"] },
+  { href: "/production", label: "Stok", icon: "📦", match: ["/production"] },
   { href: "/reports", label: "Laporan", icon: "📊", match: ["/reports"] },
   {
     href: "/more",
     label: "Lainnya",
     icon: "☰",
-    match: ["/more", "/menu", "/production", "/ingredients", "/expenses", "/staff", "/settings"],
+    match: ["/more", "/menu", "/ingredients", "/stock", "/expenses", "/staff", "/settings"],
   },
 ];
 

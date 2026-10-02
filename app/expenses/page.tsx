@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { pct, rupiah, todayJkt } from "@/lib/format";
 import { Bar, Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, btnCls, inputCls, type Msg } from "@/components/ui";
+import OwnerOnly from "@/components/OwnerOnly";
 
 const CATEGORIES = ["Sewa", "Gaji", "Listrik", "Gas", "Air", "Internet", "Kemasan", "Marketing", "Perawatan dan perbaikan", "Lainnya"];
 
@@ -81,6 +82,7 @@ export default function ExpensesPage() {
       <PageTitle sub="Semua biaya di luar pembelian bahan baku.">Biaya operasional</PageTitle>
       <Notice msg={msg} />
 
+      <OwnerOnly feature="biaya operasional">
       <Card className="mb-4 space-y-3">
         <h2 className="font-semibold">Catat biaya</h2>
         <div className="grid grid-cols-2 gap-3">
@@ -160,6 +162,7 @@ export default function ExpensesPage() {
           )}
         </Card>
       )}
+      </OwnerOnly>
     </div>
   );
 }

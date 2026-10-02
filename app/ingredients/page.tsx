@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { fmt, rupiah } from "@/lib/format";
 import type { StockRow, Unit } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
+import OwnerOnly from "@/components/OwnerOnly";
 import IngredientEditor from "@/components/IngredientEditor";
 
 export default function IngredientsPage() {
@@ -65,6 +66,7 @@ export default function IngredientsPage() {
       <PageTitle sub="Daftar bahan baku dan batas stok minimum.">Bahan baku</PageTitle>
       <Notice msg={msg} />
 
+      <OwnerOnly feature="bahan baku">
       <Card className="mb-4 space-y-3">
         <h2 className="font-semibold">Tambah bahan</h2>
         <div>
@@ -124,6 +126,7 @@ export default function IngredientsPage() {
           )}
         </>
       )}
+      </OwnerOnly>
     </div>
   );
 }

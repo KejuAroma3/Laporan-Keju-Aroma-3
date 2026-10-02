@@ -6,6 +6,7 @@ import { CHANNEL_LABEL, daysAgoJkt, fmt, monthStartJkt, pct, rangeIso, rupiah, t
 import type { BestSeller, Channel, Pnl } from "@/lib/types";
 import { Bar, Card, Empty, Notice, PageTitle, Tabs, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import BestSellerList from "@/components/BestSellerList";
+import OwnerOnly from "@/components/OwnerOnly";
 import PurchaseReport, { type Purchase } from "@/components/PurchaseReport";
 
 type Tab = "terlaris" | "labarugi" | "biaya" | "belanja" | "channel";
@@ -83,6 +84,7 @@ export default function ReportsPage() {
     <div>
       <PageTitle>Laporan</PageTitle>
 
+      <OwnerOnly feature="laporan">
       <Card className="mb-4 space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <input type="date" className={inputCls} value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} aria-label="Dari tanggal" />
@@ -229,6 +231,7 @@ export default function ReportsPage() {
           <p className="text-xs text-stone-500">Margin dihitung dari penjualan kotor. Bandingkan margin Offline dengan platform online untuk melihat channel yang paling menguntungkan.</p>
         </div>
       )}
+      </OwnerOnly>
     </div>
   );
 }

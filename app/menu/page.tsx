@@ -8,6 +8,7 @@ import type { Ingredient, MenuItem, ProductStockRow, RecipeItem } from "@/lib/ty
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
 import PhotoUpload from "@/components/PhotoUpload";
+import OwnerOnly from "@/components/OwnerOnly";
 
 export default function MenuPage() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
@@ -83,6 +84,7 @@ export default function MenuPage() {
       </div>
       <Notice msg={msg} />
 
+      <OwnerOnly feature="menu dan resep">
       <Card className="mb-4 space-y-3">
         <h2 className="font-semibold">Tambah menu</h2>
         <div>
@@ -129,7 +131,7 @@ export default function MenuPage() {
                     </div>
                     {tracked && (
                       <div className={`text-xs font-medium ${st.is_low ? "text-red-700" : "text-stone-400"}`}>
-                        Stok produk: {fmt(st.stock_on_hand)} porsi{st.is_low ? ", segera produksi lagi" : ""}
+                        Stok produk: {fmt(st.stock_on_hand)} {st.stock_unit}{st.is_low ? ", segera produksi lagi" : ""}
                       </div>
                     )}
                   </div>
@@ -161,6 +163,7 @@ export default function MenuPage() {
           )}
         </>
       )}
+      </OwnerOnly>
     </div>
   );
 }
@@ -180,6 +183,7 @@ function MenuEditor({
   const [price, setPrice] = useState(String(menu.price));
   const [category, setCategory] = useState(menu.category ?? "");
   const [minStock, setMinStock] = useState(String(menu.min_product_stock));
+  const [stockUnit, setStockUnit] = useState(menu.stock_unit);
   const [ing, setIng] = useState("");
   const [qty, setQty] = useState("");
   const sel = ings.find((i) => i.id === ing);
@@ -201,6 +205,7 @@ function MenuEditor({
         price: Number(price) || 0,
         category: category.trim() || null,
         min_product_stock: Number(minStock) || 0,
+        stock_unit: stockUnit.trim() || "pcs",
       })
       .eq("id", menu.id);
     if (error) {
@@ -232,7 +237,7 @@ function MenuEditor({
 
   async function addLine() {
     if (!ing || !(Number(qty) > 0)) {
-      onChanged({ type: "err", text: "Pilih bahan dan isi jumlah per porsi." });
+      onChanged({ type: "err", text: `Pilih bahan dan isi jumlah per ${menu.stock_unit}.` });
       return;
     }
     const { error } = await supabase
@@ -286,10 +291,16 @@ function MenuEditor({
         </div>
       </div>
       {menu.track_stock && (
-        <div>
-          <Label>Stok produk minimum (porsi)</Label>
-          <input type="number" inputMode="decimal" className={inputCls} value={minStock} onChange={(e) => setMinStock(e.target.value)} placeholder="0" />
-          <p className="mt-1 text-xs text-stone-500">Diberi tanda "stok menipis" kalau stok produk turun sampai atau di bawah angka ini.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Satuan stok produk</Label>
+            <input className={inputCls} value={stockUnit} onChange={(e) => setStockUnit(e.target.value)} placeholder="pcs" />
+          </div>
+          <div>
+            <Label>Stok minimum ({stockUnit || "satuan"})</Label>
+            <input type="number" inputMode="decimal" className={inputCls} value={minStock} onChange={(e) => setMinStock(e.target.value)} placeholder="0" />
+          </div>
+          <p className="col-span-2 text-xs text-stone-500">Diberi tanda "stok menipis" kalau stok produk turun sampai atau di bawah angka minimum.</p>
         </div>
       )}
       <button className={`${btnGhostCls} w-full`} onClick={toggleActive}>
@@ -301,7 +312,7 @@ function MenuEditor({
       </div>
 
       <div>
-        <h3 className="mb-2 font-semibold">Resep per 1 porsi</h3>
+        <h3 className="mb-2 font-semibold">Resep per 1 {menu.stock_unit}</h3>
         {recipe.length === 0 ? (
           <p className="text-sm text-stone-500">Belum ada bahan di resep ini.</p>
         ) : (
@@ -337,7 +348,7 @@ function MenuEditor({
           className={inputCls}
           value={qty}
           onChange={(e) => setQty(e.target.value)}
-          placeholder={sel ? `Jumlah per porsi (${sel.unit})` : "Jumlah per porsi"}
+          placeholder={sel ? `Jumlah per ${menu.stock_unit} (${sel.unit})` : `Jumlah per ${menu.stock_unit}`}
         />
         <button className={`${btnCls} w-full`} onClick={addLine}>Tambah ke resep</button>
       </div>

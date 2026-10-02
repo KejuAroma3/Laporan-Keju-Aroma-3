@@ -19,6 +19,7 @@ import {
   todayJkt,
 } from "@/lib/format";
 import type { BestSeller, Period, SaleRow, StockRow } from "@/lib/types";
+import { loadRole } from "@/lib/authClient";
 import { Card, Empty, Notice, PageTitle, Stat, Tabs, type Msg } from "@/components/ui";
 import BestSellerList from "@/components/BestSellerList";
 
@@ -52,6 +53,11 @@ export default function Dashboard() {
   const [anchor, setAnchor] = useState(todayJkt());
   const [best, setBest] = useState<BestSeller[]>([]);
   const [bestLoading, setBestLoading] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
+
+  useEffect(() => {
+    loadRole().then((r) => setIsOwner(r.status === "ready" && r.role === "owner"));
+  }, []);
 
   const range = useMemo(() => rangeFor(period, anchor), [period, anchor]);
   const periodLabel =
@@ -117,20 +123,28 @@ export default function Dashboard() {
       <PageTitle back={false} sub="Ringkasan hari ini dan produk paling banyak terjual.">Beranda</PageTitle>
       <Notice msg={msg} />
 
-      <div className="mb-4 grid grid-cols-2 gap-3">
-        <Stat label="Pendapatan bersih hari ini" value={rupiah(today.revenue)} />
-        <Stat label="Laba kotor hari ini" value={rupiah(today.profit)} hint={`${today.portions} porsi terjual`} />
-        <Stat label="Laba bersih bulan ini" value={rupiah(monthNet)} hint="Sudah dikurangi biaya operasional" />
-        <Stat label="Biaya operasional bulan ini" value={rupiah(monthOpex)} />
-      </div>
+      {isOwner && (
+        <div className="mb-4 grid grid-cols-2 gap-3">
+          <Stat label="Pendapatan bersih hari ini" value={rupiah(today.revenue)} />
+          <Stat label="Laba kotor hari ini" value={rupiah(today.profit)} hint={`${today.portions} porsi terjual`} />
+          <Stat label="Laba bersih bulan ini" value={rupiah(monthNet)} hint="Sudah dikurangi biaya operasional" />
+          <Stat label="Biaya operasional bulan ini" value={rupiah(monthOpex)} />
+        </div>
+      )}
 
       <div className="mb-4 grid grid-cols-2 gap-3">
         <Link href="/sales/online-recap" className="flex h-14 items-center justify-center gap-2 rounded-xl bg-brand-700 font-semibold text-brand-fg active:bg-brand-800">
           <span>🧾</span> Rekap penjualan
         </Link>
-        <Link href="/stock" className="flex h-14 items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white font-semibold active:bg-stone-100">
-          <span>📦</span> Catat belanja bahan
-        </Link>
+        {isOwner ? (
+          <Link href="/stock" className="flex h-14 items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white font-semibold active:bg-stone-100">
+            <span>🌾</span> Catat belanja bahan
+          </Link>
+        ) : (
+          <Link href="/production" className="flex h-14 items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white font-semibold active:bg-stone-100">
+            <span>📦</span> Produksi
+          </Link>
+        )}
       </div>
 
       <Card className="mb-4">

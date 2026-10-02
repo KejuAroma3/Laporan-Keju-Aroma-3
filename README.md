@@ -24,7 +24,8 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
    `supabase/3-foto-dan-dashboard.sql`, `supabase/4-karyawan.sql`, `supabase/5-satuan-bahan.sql`,
    `supabase/6-pengaturan-aplikasi.sql` (butuh tabel dari langkah karyawan), lalu
    `supabase/7-tanggal-belanja.sql` (mengganti fungsi record_purchase; jangan jalankan ulang 1-skema.sql sesudahnya),
-   `supabase/8-koreksi-penjualan.sql`, lalu `supabase/9-stok-produk.sql`.
+   `supabase/8-koreksi-penjualan.sql`, `supabase/9-stok-produk.sql`, lalu
+   `supabase/10-satuan-produk-dan-akses.sql`.
 2. Sudah pernah menjalankan skema sebelumnya: cukup jalankan file yang belum pernah dijalankan,
    urut dari nomor terkecil. Semua file aman dijalankan berulang.
 3. Authentication > Users: buat akun untuk Anda dan staf.
@@ -64,6 +65,21 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
   memilih Offline. Halaman "Jual" yang lama sudah dihapus. Di bawah form pencatatan ada
   daftar penjualan untuk platform dan tanggal yang dipilih, dengan tombol Ubah dan Hapus
   untuk mengoreksi kesalahan input (butuh `supabase/8-koreksi-penjualan.sql`).
+
+## Pembagian akses pemilik vs staf
+
+- **Pemilik**: akses penuh ke semua halaman.
+- **Staf**: hanya bisa memakai Rekap penjualan dan Produksi (termasuk tab Sesuaikan).
+  Halaman Menu dan resep, Bahan baku, Stok bahan, Biaya operasional, Laporan, Karyawan, dan
+  Pengaturan menampilkan pesan "hanya pemilik" untuk akun staf. Di halaman Produksi, staf
+  tetap bisa input jumlah produksi dan stok, tapi tidak melihat nilai rupiah (HPP, nilai
+  stok). Di Beranda, staf tidak melihat angka pendapatan/laba/biaya, hanya daftar produk
+  terlaris (jumlah terjual saja, tanpa omzet) dan peringatan stok menipis (jumlah saja).
+- **Penting**: ini pembatasan TAMPILAN, bukan di database. Kebijakan keamanan (RLS) tabel
+  ingredients, menu_items, expenses, dan stock_movements masih mengizinkan semua akun yang
+  login untuk membaca datanya, termasuk angka rupiah, lewat API Supabase secara langsung
+  (bukan lewat tampilan aplikasi ini). Ini cukup untuk staf yang tidak mengakses lewat jalur
+  teknis. Kalau butuh jaminan yang diberlakukan di database, itu pekerjaan tambahan terpisah.
 
 ## Fitur
 
@@ -111,18 +127,21 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
   dialog konfirmasi, dan reset semua bahan meminta mengetik RESET. Hanya pemilik yang bisa
   mengakses tab ini. Catatan: pembatasan ini ada di tampilan aplikasi, belum diberlakukan
   di database.
-- **Stok produk jadi** (Lainnya > Produksi): untuk menu yang diproduksi dalam batch (misalnya
-  digoreng/dikemas duluan), bukan dibuat saat ada pesanan. Catat produksi (jumlah porsi), dan
-  bahan otomatis terpotong sesuai resep dikali jumlah itu, sekaligus menghitung HPP produk dari
-  biaya bahan saat itu (rata-rata tertimbang, seperti harga bahan). Setelah menu pernah
-  diproduksi sekali, penjualan menu itu mengurangi stok produk (bukan menghitung ulang bahan
-  tiap laku), dan HPP di laporan memakai HPP produksi yang sebenarnya, bukan estimasi resep.
-  Ada tab Sesuaikan untuk mencatat produk rusak/hilang atau opname (hitung fisik). Menu yang
-  belum pernah diproduksi tetap seperti sebelumnya, dibuat saat dipesan, tanpa perlu diaktifkan
-  manual. Muncul juga di halaman Menu dan resep (stok dan HPP) dan Rekap penjualan (stok saat
-  memilih menu, dengan peringatan kalau jumlah pesanan melebihi stok — tetap bisa disimpan).
-  Ubah/hapus penjualan yang memakai stok produk ikut mengembalikan stoknya dengan benar. Butuh
-  `supabase/9-stok-produk.sql`.
+- **Stok produk jadi** (navigasi bawah > Stok): untuk menu yang diproduksi dalam batch (misalnya
+  digoreng/dikemas duluan), bukan dibuat saat ada pesanan. Satuannya per pcs secara bawaan
+  (bisa diganti per menu di Menu dan resep, misalnya jadi lembar atau botol). Catat produksi
+  (jumlah pcs), dan bahan otomatis terpotong sesuai resep dikali jumlah itu, sekaligus
+  menghitung HPP produk dari biaya bahan saat itu (rata-rata tertimbang, seperti harga bahan).
+  Setelah menu pernah diproduksi sekali, penjualan menu itu mengurangi stok produk (bukan
+  menghitung ulang bahan tiap laku), dan HPP di laporan memakai HPP produksi yang sebenarnya,
+  bukan estimasi resep. Ada tab Sesuaikan untuk mencatat produk rusak/hilang atau opname
+  (hitung fisik). Menu yang belum pernah diproduksi tetap seperti sebelumnya, dibuat saat
+  dipesan, tanpa perlu diaktifkan manual. Muncul juga di halaman Menu dan resep (stok dan HPP)
+  dan Rekap penjualan (stok saat memilih menu, dengan peringatan kalau jumlah pesanan melebihi
+  stok — tetap bisa disimpan). Ubah/hapus penjualan yang memakai stok produk ikut mengembalikan
+  stoknya dengan benar. Butuh `supabase/9-stok-produk.sql` dan `supabase/10-satuan-produk-dan-akses.sql`.
+  Catatan: tab navigasi bawah "Stok" sekarang menuju stok produk ini; stok bahan baku pindah
+  ke Lainnya > Stok bahan.
 - **Kontras warna otomatis**: warna teks tombol (putih atau gelap) dipilih otomatis mengikuti
   keterbacaan di atas warna tema yang dipilih di Pengaturan, supaya warna terang seperti
   kuning tetap enak dibaca.

@@ -19,6 +19,7 @@ export type MenuItem = {
   track_stock: boolean;
   avg_product_cost: number;
   min_product_stock: number;
+  stock_unit: string;
 };
 
 // Dari view v_product_stock: stok produk jadi per menu, dihitung dari
@@ -30,6 +31,7 @@ export type ProductStockRow = {
   track_stock: boolean;
   avg_product_cost: number;
   min_product_stock: number;
+  stock_unit: string;
   stock_on_hand: number;
   is_low: boolean;
 };

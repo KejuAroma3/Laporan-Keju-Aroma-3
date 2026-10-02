@@ -8,7 +8,7 @@ import { Card, Label, Notice, PageTitle, btnCls, btnGhostCls, inputCls, type Msg
 
 const LINKS = [
   { href: "/menu", title: "Menu dan resep", desc: "Harga jual, resep, foto produk, dan estimasi margin", icon: "🍽️" },
-  { href: "/production", title: "Produksi", desc: "Stok produk jadi (per pcs/porsi), catat produksi batch", icon: "🏭" },
+  { href: "/stock", title: "Stok bahan", desc: "Stok bahan baku, satuan, batas minimum", icon: "🌾" },
   { href: "/ingredients", title: "Bahan baku", desc: "Daftar bahan, satuan, batas stok minimum", icon: "🧀" },
   { href: "/expenses", title: "Biaya operasional", desc: "Sewa, gaji, listrik, gas, dan lainnya", icon: "💰" },
   { href: "/staff", title: "Karyawan", desc: "Tambah akun staf, ubah email dan kata sandi", icon: "👥" },

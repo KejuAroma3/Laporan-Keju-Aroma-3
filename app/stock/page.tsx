@@ -6,6 +6,7 @@ import { fmt, labelDay, rupiah, todayJkt } from "@/lib/format";
 import type { StockRow, Unit } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, Tabs, btnCls, btnDangerCls, inputCls, type Msg } from "@/components/ui";
 import IngredientEditor from "@/components/IngredientEditor";
+import OwnerOnly from "@/components/OwnerOnly";
 import { loadRole, type RoleState } from "@/lib/authClient";
 
 type Tab = "sisa" | "masuk" | "keluar" | "opname" | "reset";
@@ -38,7 +39,8 @@ export default function StockPage() {
 
   return (
     <div>
-      <PageTitle>Stok</PageTitle>
+      <PageTitle>Stok bahan</PageTitle>
+      <OwnerOnly feature="stok bahan">
       <Tabs
         value={tab}
         onChange={(t) => { setTab(t); setMsg(null); }}
@@ -58,6 +60,7 @@ export default function StockPage() {
       {tab === "reset" && (
         <ResetForm rows={rows} blocked={role.status === "ready" && role.role === "staff"} onDone={done} />
       )}
+      </OwnerOnly>
     </div>
   );
 }

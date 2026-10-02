@@ -276,7 +276,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                       <div className="text-sm text-stone-500">{rupiah(m.price)}</div>
                       {tracked && (
                         <div className={`text-xs font-medium ${overStock ? "text-red-700" : "text-stone-400"}`}>
-                          Stok: {st.stock_on_hand} porsi
+                          Stok: {st.stock_on_hand} {st.stock_unit}
                         </div>
                       )}
                     </div>
@@ -306,7 +306,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                   </div>
                   {online && l && (
                     <div className="mt-3">
-                      <Label>{channel === "offline" ? "Harga jual (per porsi)" : "Harga jual di aplikasi (per porsi)"}</Label>
+                      <Label>{`Harga jual${channel === "offline" ? "" : " di aplikasi"} (per ${tracked ? st.stock_unit : "porsi"})`}</Label>
                       <input
                         type="number"
                         inputMode="numeric"
@@ -357,7 +357,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
         </div>
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0 text-sm text-stone-500">
-            {portions} porsi, subtotal {rupiah(total)}
+            {portions} item, subtotal {rupiah(total)}
             <div className="text-lg font-bold text-stone-900">{rupiah(net)}</div>
           </div>
           <div className="flex shrink-0 gap-2">
