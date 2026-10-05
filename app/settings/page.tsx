@@ -25,6 +25,8 @@ export default function SettingsPage() {
   const [tagline, setTagline] = useState("");
   const [color, setColor] = useState("");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [receiptWidth, setReceiptWidth] = useState(58);
+  const [receiptFooter, setReceiptFooter] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
   const [saved, setSaved] = useState(false);
@@ -42,6 +44,8 @@ export default function SettingsPage() {
       setTagline(s.tagline);
       setColor(s.theme_color);
       setLogoUrl(s.logo_url);
+      setReceiptWidth(s.receipt_width_mm);
+      setReceiptFooter(s.receipt_footer);
     });
   }, []);
 
@@ -63,6 +67,8 @@ export default function SettingsPage() {
         tagline: tagline.trim() || DEFAULT_SETTINGS.tagline,
         theme_color: color,
         logo_url: logoUrl,
+        receipt_width_mm: receiptWidth,
+        receipt_footer: receiptFooter.trim() || DEFAULT_SETTINGS.receipt_footer,
         updated_at: new Date().toISOString(),
       })
       .eq("id", true);
@@ -195,6 +201,32 @@ export default function SettingsPage() {
         <p className="text-xs text-stone-500">
           Dipakai untuk warna tombol utama, tab aktif, dan status di seluruh aplikasi.
         </p>
+      </Card>
+
+      <Card className="mb-4 space-y-3">
+        <h2 className="font-semibold">Format struk</h2>
+        <div>
+          <Label>Ukuran kertas bawaan</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {[58, 80].map((w) => (
+              <button
+                key={w}
+                type="button"
+                onClick={() => setReceiptWidth(w)}
+                className={`h-11 rounded-xl border text-sm font-semibold ${
+                  receiptWidth === w ? "border-brand-700 bg-brand-700 text-brand-fg" : "border-stone-300 bg-white text-stone-700"
+                }`}
+              >
+                {w}mm
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-stone-500">Masih bisa diganti per struk saat mencetak.</p>
+        </div>
+        <div>
+          <Label>Teks penutup struk</Label>
+          <input className={inputCls} value={receiptFooter} onChange={(e) => setReceiptFooter(e.target.value)} placeholder="Terima kasih!" />
+        </div>
       </Card>
 
       <button className={`${btnCls} w-full`} onClick={save} disabled={busy}>

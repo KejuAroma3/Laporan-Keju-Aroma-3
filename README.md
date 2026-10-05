@@ -24,8 +24,8 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
    `supabase/3-foto-dan-dashboard.sql`, `supabase/4-karyawan.sql`, `supabase/5-satuan-bahan.sql`,
    `supabase/6-pengaturan-aplikasi.sql` (butuh tabel dari langkah karyawan), lalu
    `supabase/7-tanggal-belanja.sql` (mengganti fungsi record_purchase; jangan jalankan ulang 1-skema.sql sesudahnya),
-   `supabase/8-koreksi-penjualan.sql`, `supabase/9-stok-produk.sql`, `supabase/10-satuan-produk-dan-akses.sql`, lalu
-   `supabase/11-kategori-bahan.sql`.
+   `supabase/8-koreksi-penjualan.sql`, `supabase/9-stok-produk.sql`, `supabase/10-satuan-produk-dan-akses.sql`, `supabase/11-kategori-bahan.sql`, lalu
+   `supabase/12-pengaturan-struk.sql`.
 2. Sudah pernah menjalankan skema sebelumnya: cukup jalankan file yang belum pernah dijalankan,
    urut dari nomor terkecil. Semua file aman dijalankan berulang.
 3. Authentication > Users: buat akun untuk Anda dan staf.
@@ -65,6 +65,25 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
   memilih Offline. Halaman "Jual" yang lama sudah dihapus. Di bawah form pencatatan ada
   daftar penjualan untuk platform dan tanggal yang dipilih, dengan tombol Ubah dan Hapus
   untuk mengoreksi kesalahan input (butuh `supabase/8-koreksi-penjualan.sql`).
+
+## Cetak struk
+
+Dari Rekap penjualan: setelah menyimpan penjualan baru, muncul tombol "Cetak struk penjualan
+ini". Untuk penjualan yang sudah tersimpan, ada tombol "Cetak" di daftar riwayat penjualan.
+Keduanya membuka halaman pratinjau struk, bisa pilih ukuran 58mm atau 80mm, dengan dua cara
+mencetak:
+- **Cetak** (dialog print bawaan HP/komputer): paling andal, bisa dipakai di HP apa pun
+  (termasuk iPhone). Kalau printer Bluetooth Anda sudah terpasang sebagai printer di sistem
+  Android (lewat aplikasi bawaan mereknya), cara ini otomatis bisa memakainya.
+- **Cetak via Bluetooth (eksperimental)**: menghubungkan langsung dari browser ke printer
+  lewat Web Bluetooth. Hanya jalan di Chrome (Android/komputer), tidak jalan di iPhone/Safari,
+  dan hanya untuk printer Bluetooth Low Energy (BLE) yang kompatibel — printer yang memakai
+  Bluetooth Classic (SPP), yang cukup umum juga, tidak bisa diakses dari browser mana pun.
+  Tidak ada standar universal antar merek printer; kalau printer Anda tidak terdeteksi,
+  gunakan tombol Cetak biasa sebagai gantinya.
+
+Ukuran kertas bawaan dan teks penutup struk bisa diatur di Pengaturan > Format struk, dan
+masih bisa diganti per struk saat mencetak. Butuh `supabase/12-pengaturan-struk.sql`.
 
 ## Kategori bahan baku
 

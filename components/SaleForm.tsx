@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { CHANNEL_LABEL, rangeIso, rupiah, todayJkt } from "@/lib/format";
 import type { Channel, MenuItem, ProductStockRow } from "@/lib/types";
@@ -39,6 +40,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const [msg, setMsg] = useState<Msg>(null);
   const [history, setHistory] = useState<HistorySale[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [lastSavedId, setLastSavedId] = useState<string | null>(null);
 
   async function load() {
     const [m, s] = await Promise.all([
@@ -71,6 +73,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   useEffect(() => { loadHistory(); }, [online, date, channel]);
 
   function change(m: MenuItem, delta: number) {
+    setLastSavedId(null);
     setCart((c) => {
       const cur = c[m.id] ?? { qty: 0, price: m.price };
       const qty = Math.max(0, cur.qty + delta);
@@ -119,6 +122,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     setFee(s.platform_fee ? String(s.platform_fee) : "");
     setEditingId(s.id);
     setMsg(null);
+    setLastSavedId(null);
   }
 
   async function removeSale(s: HistorySale) {
@@ -158,7 +162,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
       : new Date().toISOString();
     const items = lines.map(([id, l]) => ({ menu_item_id: id, qty: l.qty, unit_price: l.price }));
 
-    const { error } = editingId
+    const { data: savedId, error } = editingId
       ? await supabase.rpc("update_sale", {
           p_sale: editingId,
           p_channel: channel,
@@ -182,6 +186,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     const wasEditing = Boolean(editingId);
     resetForm();
     setMsg({ type: "ok", text: `${wasEditing ? "Perubahan disimpan" : "Tersimpan"}. Pendapatan bersih ${rupiah(net)}.` });
+    setLastSavedId(typeof savedId === "string" ? savedId : null);
     load();
     loadHistory();
   }
@@ -200,6 +205,14 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
         {online ? "Rekap penjualan" : "Catat penjualan"}
       </PageTitle>
       <Notice msg={msg} />
+      {lastSavedId && (
+        <Link
+          href={`/sales/receipt?sale=${lastSavedId}`}
+          className={`${btnGhostCls} mb-4 flex items-center justify-center gap-2`}
+        >
+          🖨️ Cetak struk penjualan ini
+        </Link>
+      )}
 
       {editingId && (
         <Card className="mb-4 border-amber-300 bg-amber-50">
@@ -398,15 +411,18 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                     </div>
                   </div>
                   <div className="mt-2 flex gap-2">
+                    <Link href={`/sales/receipt?sale=${s.id}`} className={`${btnGhostCls} h-9 flex-1 px-2 text-sm`}>
+                      Cetak
+                    </Link>
                     <button
-                      className={`${btnGhostCls} h-9 flex-1 px-3 text-sm`}
+                      className={`${btnGhostCls} h-9 flex-1 px-2 text-sm`}
                       onClick={() => editSale(s)}
                       disabled={busy}
                     >
                       Ubah
                     </button>
                     <button
-                      className={`${btnGhostCls} h-9 flex-1 px-3 text-sm text-red-700`}
+                      className={`${btnGhostCls} h-9 flex-1 px-2 text-sm text-red-700`}
                       onClick={() => removeSale(s)}
                       disabled={busy}
                     >
