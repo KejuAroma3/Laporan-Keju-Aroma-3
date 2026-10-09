@@ -14,7 +14,7 @@ const NAV = [
     href: "/more",
     label: "Lainnya",
     icon: "☰",
-    match: ["/more", "/menu", "/ingredients", "/stock", "/expenses", "/staff", "/settings"],
+    match: ["/more", "/menu", "/recipes", "/ingredients", "/stock", "/expenses", "/staff", "/settings"],
   },
 ];
 

@@ -84,7 +84,7 @@ function StockList({
   showValue: boolean;
 }) {
   const [q, setQ] = useState("");
-  if (rows.length === 0) return <Empty>Belum ada menu. Tambahkan dulu di Menu dan resep.</Empty>;
+  if (rows.length === 0) return <Empty>Belum ada menu. Tambahkan dulu di Lainnya › Menu.</Empty>;
 
   const term = q.trim().toLowerCase();
   const filtered = term

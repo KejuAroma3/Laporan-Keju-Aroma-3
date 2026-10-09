@@ -29,7 +29,7 @@ export const INGREDIENT_CATEGORY_SUGGESTIONS = ["Bahan baku", "Bahan kemasan", "
 export type ProductGroupBucket<T> = { key: string; groupId: string | null; label: string; items: T[] };
 
 // Mengelompokkan menu berdasarkan produk dasarnya (product_group_id),
-// dipakai di Menu dan resep, Rekap penjualan, dan Produksi supaya varian
+// dipakai di Menu, Resep, Rekap penjualan, dan Produksi supaya varian
 // (isi/topping beda dari produk yang sama) tampil berdekatan, bukan
 // tercampur rata dengan menu lain. Menu tanpa produk dasar masuk satu
 // kelompok di urutan paling akhir.

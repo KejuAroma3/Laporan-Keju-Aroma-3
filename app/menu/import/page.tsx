@@ -136,7 +136,7 @@ export default function ImportMenuPage() {
         />
         <p className="text-xs text-stone-500">
           Produk dengan nama yang sudah ada akan diperbarui harganya, bukan digandakan. Resep dan foto
-          ditambahkan satu per satu setelah impor, lewat halaman Menu dan resep.
+          ditambahkan satu per satu setelah impor, lewat halaman Resep.
         </p>
       </Card>
 

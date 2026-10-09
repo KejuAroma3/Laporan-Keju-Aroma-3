@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { fmt, pct, rupiah } from "@/lib/format";
-import { groupByCategory, groupByProduct } from "@/lib/group";
-import type { Ingredient, MenuItem, ProductGroup, ProductStockRow, RecipeItem } from "@/lib/types";
+import { fmt, rupiah } from "@/lib/format";
+import { groupByProduct } from "@/lib/group";
+import type { MenuItem, ProductGroup, ProductStockRow, RecipeItem } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
 import PhotoUpload from "@/components/PhotoUpload";
@@ -33,7 +33,6 @@ async function resolveProductGroup(name: string, category: string | null): Promi
 
 export default function MenuPage() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
-  const [ings, setIngs] = useState<Ingredient[]>([]);
   const [recipes, setRecipes] = useState<RecipeItem[]>([]);
   const [groups, setGroups] = useState<ProductGroup[]>([]);
   const [stock, setStock] = useState<Record<string, ProductStockRow>>({});
@@ -47,17 +46,15 @@ export default function MenuPage() {
   const [msg, setMsg] = useState<Msg>(null);
 
   async function load() {
-    const [m, i, r, s, g] = await Promise.all([
+    const [m, r, s, g] = await Promise.all([
       supabase.from("menu_items").select("*").order("category").order("name"),
-      supabase.from("ingredients").select("*").order("name"),
       supabase.from("recipe_items").select("*"),
       supabase.from("v_product_stock").select("*"), // boleh gagal jika supabase/9-stok-produk.sql belum dijalankan
       supabase.from("product_groups").select("*").order("name"), // boleh gagal jika supabase/13-varian-produk.sql belum dijalankan
     ]);
-    const err = [m, i, r].find((x) => x.error)?.error;
+    const err = [m, r].find((x) => x.error)?.error;
     if (err) setMsg({ type: "err", text: err.message });
     setMenus((m.data ?? []) as MenuItem[]);
-    setIngs((i.data ?? []) as Ingredient[]);
     setRecipes((r.data ?? []) as RecipeItem[]);
     setGroups((g.data ?? []) as ProductGroup[]);
     const stockMap: Record<string, ProductStockRow> = {};
@@ -66,11 +63,6 @@ export default function MenuPage() {
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
-
-  const cost = (id: string) =>
-    recipes
-      .filter((r) => r.menu_item_id === id)
-      .reduce((s, r) => s + r.qty * (ings.find((i) => i.id === r.ingredient_id)?.avg_cost ?? 0), 0);
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -113,7 +105,7 @@ export default function MenuPage() {
       return;
     }
     setName(""); setCategory(""); setPrice(""); setProductGroup(""); setVariantName("");
-    setMsg({ type: "ok", text: "Menu ditambahkan. Lengkapi resep dan foto di bawah agar HPP dan stok terhitung." });
+    setMsg({ type: "ok", text: "Menu ditambahkan. Lengkapi foto di bawah, lalu isi bahannya di Lainnya › Resep agar HPP dan stok terhitung." });
     setOpen(data?.id ?? null);
     load();
   }
@@ -121,8 +113,8 @@ export default function MenuPage() {
   return (
     <div>
       <div className="mb-4 flex items-start justify-between gap-3">
-        <PageTitle sub="Resep menentukan pemotongan stok dan HPP tiap penjualan.">
-          Menu dan resep
+        <PageTitle sub="Nama, harga jual, kategori, varian, dan foto. Bahan dan HPP diatur di Resep.">
+          Menu
         </PageTitle>
         <Link href="/menu/import" className={`${btnGhostCls} h-10 shrink-0 px-3 text-sm`}>
           Impor massal
@@ -130,7 +122,7 @@ export default function MenuPage() {
       </div>
       <Notice msg={msg} />
 
-      <OwnerOnly feature="menu dan resep">
+      <OwnerOnly feature="menu">
       <Card className="mb-4 space-y-3">
         <h2 className="font-semibold">Tambah menu</h2>
         <div>
@@ -193,8 +185,6 @@ export default function MenuPage() {
                       const hasRecipe = recipes.some((r) => r.menu_item_id === m.id);
                       const st = stock[m.id];
                       const tracked = st?.track_stock ?? false;
-                      const hpp = tracked ? m.avg_product_cost : cost(m.id);
-                      const otherVariants = bucket.items.filter((x) => x.id !== m.id);
                       return (
                         <Card key={m.id} className={m.is_active ? "" : "opacity-60"}>
                           <button className="flex w-full items-center gap-3 text-left" onClick={() => setOpen(open === m.id ? null : m.id)}>
@@ -206,7 +196,7 @@ export default function MenuPage() {
                               </div>
                               <div className="truncate text-sm text-stone-500">
                                 {m.variant_name ? `${m.name} · ` : ""}
-                                {m.category || "Tanpa kategori"}, {rupiah(m.price)}
+                                {m.category || "Tanpa kategori"}
                               </div>
                               {tracked && (
                                 <div className={`text-xs font-medium ${st.is_low ? "text-red-700" : "text-stone-400"}`}>
@@ -215,14 +205,11 @@ export default function MenuPage() {
                               )}
                             </div>
                             <div className="shrink-0 text-right text-sm">
+                              <div className="font-semibold tabular-nums">{rupiah(m.price)}</div>
                               {hasRecipe ? (
-                                <>
-                                  <div className="font-semibold tabular-nums">HPP {rupiah(hpp)}</div>
-                                  <div className="text-brand-800">margin {pct(m.price - hpp, m.price)}</div>
-                                  {tracked && <div className="text-xs text-stone-400">dari produksi</div>}
-                                </>
+                                <div className="text-xs text-stone-400">resep ada</div>
                               ) : (
-                                <div className="font-medium text-amber-700">Resep kosong</div>
+                                <div className="text-xs font-medium text-amber-700">Resep kosong</div>
                               )}
                             </div>
                           </button>
@@ -230,11 +217,7 @@ export default function MenuPage() {
                             <MenuEditor
                               key={m.id}
                               menu={m}
-                              ings={ings}
                               groups={groups}
-                              recipe={recipes.filter((r) => r.menu_item_id === m.id)}
-                              otherVariants={otherVariants}
-                              recipesByMenu={recipes}
                               onChanged={(x) => { if (x) setMsg(x); load(); }}
                             />
                           )}
@@ -255,19 +238,11 @@ export default function MenuPage() {
 
 function MenuEditor({
   menu,
-  ings,
   groups,
-  recipe,
-  otherVariants,
-  recipesByMenu,
   onChanged,
 }: {
   menu: MenuItem;
-  ings: Ingredient[];
   groups: ProductGroup[];
-  recipe: RecipeItem[];
-  otherVariants: MenuItem[];
-  recipesByMenu: RecipeItem[];
   onChanged: (m: Msg) => void;
 }) {
   const [name, setName] = useState(menu.name);
@@ -277,10 +252,6 @@ function MenuEditor({
   const [stockUnit, setStockUnit] = useState(menu.stock_unit);
   const [productGroup, setProductGroup] = useState(groups.find((g) => g.id === menu.product_group_id)?.name ?? "");
   const [variantName, setVariantName] = useState(menu.variant_name ?? "");
-  const [copyFrom, setCopyFrom] = useState("");
-  const [ing, setIng] = useState("");
-  const [qty, setQty] = useState("");
-  const sel = ings.find((i) => i.id === ing);
 
   async function savePhoto(url: string | null) {
     const { error } = await supabase.from("menu_items").update({ photo_url: url }).eq("id", menu.id);
@@ -338,49 +309,8 @@ function MenuEditor({
     onChanged(error ? { type: "err", text: error.message } : { type: "ok", text: menu.is_active ? "Menu disembunyikan dari halaman jual." : "Menu ditampilkan kembali." });
   }
 
-  async function addLine() {
-    if (!ing || !(Number(qty) > 0)) {
-      onChanged({ type: "err", text: `Pilih bahan dan isi jumlah per ${menu.stock_unit}.` });
-      return;
-    }
-    const { error } = await supabase
-      .from("recipe_items")
-      .upsert({ menu_item_id: menu.id, ingredient_id: ing, qty: Number(qty) }, { onConflict: "menu_item_id,ingredient_id" });
-    if (!error) { setIng(""); setQty(""); }
-    onChanged(error ? { type: "err", text: error.message } : { type: "ok", text: "Resep diperbarui." });
-  }
 
-  async function removeLine(ingredientId: string) {
-    const { error } = await supabase
-      .from("recipe_items")
-      .delete()
-      .eq("menu_item_id", menu.id)
-      .eq("ingredient_id", ingredientId);
-    onChanged(error ? { type: "err", text: error.message } : null);
-  }
 
-  async function copyRecipe() {
-    if (!copyFrom) {
-      onChanged({ type: "err", text: "Pilih varian yang resepnya mau disalin." });
-      return;
-    }
-    const source = recipesByMenu.filter((r) => r.menu_item_id === copyFrom);
-    if (source.length === 0) {
-      onChanged({ type: "err", text: "Varian itu belum punya resep untuk disalin." });
-      return;
-    }
-    const { error } = await supabase
-      .from("recipe_items")
-      .upsert(
-        source.map((r) => ({ menu_item_id: menu.id, ingredient_id: r.ingredient_id, qty: r.qty })),
-        { onConflict: "menu_item_id,ingredient_id" }
-      );
-    onChanged(
-      error
-        ? { type: "err", text: error.message }
-        : { type: "ok", text: `Resep disalin. Sesuaikan bahan yang beda (misalnya isi/toppingnya) di bawah.` }
-    );
-  }
 
   return (
     <div className="mt-4 space-y-4 border-t border-stone-100 pt-4">
@@ -452,68 +382,9 @@ function MenuEditor({
         <button className={btnCls} onClick={saveInfo}>Simpan</button>
       </div>
 
-      <div>
-        <h3 className="mb-2 font-semibold">Resep per 1 {menu.stock_unit}</h3>
-        {recipe.length === 0 ? (
-          <p className="text-sm text-stone-500">Belum ada bahan di resep ini.</p>
-        ) : (
-          <ul className="divide-y divide-stone-100">
-            {recipe.map((r) => {
-              const i = ings.find((x) => x.id === r.ingredient_id);
-              return (
-                <li key={r.ingredient_id} className="flex items-center justify-between py-2 text-sm">
-                  <span>
-                    {i?.name ?? "Bahan dihapus"}: {fmt(r.qty)} {i?.unit}
-                    <span className="text-stone-500"> ({rupiah(r.qty * (i?.avg_cost ?? 0))})</span>
-                  </span>
-                  <button className="h-10 px-3 font-medium text-red-700" onClick={() => removeLine(r.ingredient_id)}>
-                    Hapus
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-
-      {otherVariants.length > 0 && recipe.length === 0 && (
-        <div className="space-y-2 rounded-xl bg-amber-50 p-3">
-          <div className="text-sm font-semibold text-amber-900">Salin resep dari varian lain</div>
-          <p className="text-xs text-amber-900">
-            Mulai dari resep varian lain dalam produk yang sama, lalu tinggal ganti bahan yang beda
-            (misalnya isi/toppingnya).
-          </p>
-          <select className={inputCls} value={copyFrom} onChange={(e) => setCopyFrom(e.target.value)}>
-            <option value="">Pilih varian…</option>
-            {otherVariants.map((v) => (
-              <option key={v.id} value={v.id}>{v.variant_name || v.name}</option>
-            ))}
-          </select>
-          <button className={`${btnCls} w-full`} onClick={copyRecipe}>Salin resep</button>
-        </div>
-      )}
-
-      <div className="space-y-3 rounded-xl bg-stone-50 p-3">
-        <select className={inputCls} value={ing} onChange={(e) => setIng(e.target.value)}>
-          <option value="">Pilih bahan…</option>
-          {groupByCategory(ings, (i) => i.category).map(([cat, items]) => (
-            <optgroup key={cat} label={cat}>
-              {items.map((i) => (
-                <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-        <input
-          type="number"
-          inputMode="decimal"
-          className={inputCls}
-          value={qty}
-          onChange={(e) => setQty(e.target.value)}
-          placeholder={sel ? `Jumlah per ${menu.stock_unit} (${sel.unit})` : `Jumlah per ${menu.stock_unit}`}
-        />
-        <button className={`${btnCls} w-full`} onClick={addLine}>Tambah ke resep</button>
-      </div>
+      <Link href={`/recipes?menu=${menu.id}`} className={`${btnGhostCls} block w-full text-center`}>
+        Atur resep menu ini
+      </Link>
     </div>
   );
 }

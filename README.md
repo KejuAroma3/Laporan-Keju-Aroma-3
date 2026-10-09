@@ -53,7 +53,7 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
 
 1. Lainnya > Bahan baku
 2. Stok > Masuk (stok awal dan harga beli)
-3. Lainnya > Menu dan resep (bisa satu-satu, atau impor massal lewat tombol di halaman ini)
+3. Lainnya > Menu (bisa satu-satu, atau impor massal lewat tombol di halaman ini), lalu Lainnya > Resep untuk mengisi bahan tiap menu
 4. Buka tiap menu untuk menambah resep dan foto produk
 5. Mulai mencatat penjualan
 
@@ -71,16 +71,16 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
 Untuk menu yang beda varian (isi/topping) dari produk yang sama, misalnya "Keju Aroma" dengan
 varian Original dan Cokelat. Di Menu dan resep, isi kolom "Produk dasar" dan "Nama varian"
 saat menambah atau mengubah menu. Varian dari produk dasar yang sama dikelompokkan berdekatan
-di Menu dan resep, Rekap penjualan (satu kartu per produk dasar, tiap varian satu baris), dan
+di Menu, Resep, Rekap penjualan (satu kartu per produk dasar, tiap varian satu baris), dan
 Produksi (dengan total stok gabungan semua varian). Di Laporan > Terlaris ada pilihan "Per
 varian" dan "Per produk dasar" (jumlah terjual, omzet, dan laba semua varian dijumlahkan).
 
 Tiap varian tetap menu penuh sendiri: resep, stok produksi, dan HPP-nya terpisah. Ini disengaja,
 supaya mengubah resep satu varian tidak diam-diam mengubah HPP varian lain. Untuk menambah
-varian baru dengan cepat, buka varian baru itu di Menu dan resep (selama resepnya masih kosong)
+varian baru dengan cepat, buka varian baru itu di Resep (selama resepnya masih kosong)
 dan pakai "Salin resep dari varian lain", lalu ganti bahan yang beda (isi/toppingnya).
 Menu yang berdiri sendiri cukup dikosongkan kolom produk dasarnya. Impor massal (CSV) belum
-mendukung kolom produk dasar/varian; atur lewat Menu dan resep setelah impor.
+mendukung kolom produk dasar/varian; atur lewat Menu dan Resep setelah impor.
 Butuh `supabase/13-varian-produk.sql`.
 
 ## Cetak struk
@@ -107,14 +107,14 @@ masih bisa diganti per struk saat mencetak. Butuh `supabase/12-pengaturan-struk.
 Di halaman Bahan baku, tiap bahan bisa diberi kategori (contoh: "Bahan baku", "Bahan
 kemasan", "Bahan habis pakai" — bebas ketik kategori lain juga). Daftar bahan di Bahan baku
 dan Stok bahan dikelompokkan per kategori, begitu juga dropdown pilih bahan di Stok (Masuk/
-Keluar/Opname) dan saat menyusun resep di Menu dan resep. Bahan tanpa kategori masuk
+Keluar/Opname) dan saat menyusun resep di Resep. Bahan tanpa kategori masuk
 kelompok "Tanpa kategori" di urutan paling akhir. Butuh `supabase/11-kategori-bahan.sql`.
 
 ## Pembagian akses pemilik vs staf
 
 - **Pemilik**: akses penuh ke semua halaman.
 - **Staf**: hanya bisa memakai Rekap penjualan dan Produksi (termasuk tab Sesuaikan).
-  Halaman Menu dan resep, Bahan baku, Stok bahan, Biaya operasional, Laporan, Karyawan, dan
+  Halaman Menu, Resep, Bahan baku, Stok bahan, Biaya operasional, Laporan, Karyawan, dan
   Pengaturan menampilkan pesan "hanya pemilik" untuk akun staf. Di halaman Produksi, staf
   tetap bisa input jumlah produksi dan stok, tapi tidak melihat nilai rupiah (HPP, nilai
   stok). Di Beranda, staf tidak melihat angka pendapatan/laba/biaya, hanya daftar produk
@@ -129,10 +129,10 @@ kelompok "Tanpa kategori" di urutan paling akhir. Butuh `supabase/11-kategori-ba
 
 - **Beranda**: produk paling banyak terjual, dengan tab Harian / Mingguan / Bulanan dan
   navigasi tanggal (panah kiri-kanan atau pilih tanggal langsung).
-- **Impor produk massal**: Menu dan resep > Impor massal. Unduh format CSV, isi nama,
+- **Impor produk massal**: Menu > Impor massal. Unduh format CSV, isi nama,
   kategori, dan harga, lalu unggah. Produk dengan nama yang sama akan diperbarui harganya.
   Resep dan foto tetap ditambahkan satu per satu setelah impor.
-- **Foto produk**: dibuka dari halaman Menu dan resep, di dalam tiap menu. Foto otomatis
+- **Foto produk**: dibuka dari halaman Menu, di dalam tiap menu. Foto otomatis
   dikecilkan di perangkat sebelum diunggah agar hemat data dan ruang penyimpanan.
 - **Karyawan** (menu di Lainnya, selalu tampil): tambah akun staf baru, ubah nama, email
   (dipakai sebagai username saat masuk), kata sandi, dan peran, atau hapus akun. Hanya akun
@@ -142,7 +142,7 @@ kelompok "Tanpa kategori" di urutan paling akhir. Butuh `supabase/11-kategori-ba
   `supabase/4-karyawan.sql` lalu muat ulang. Semua pengguna, staf maupun pemilik, juga bisa
   mengganti kata sandi akun mereka sendiri lewat Lainnya > Ubah kata sandi saya.
 - **Tombol kembali**: muncul di semua halaman kecuali Beranda, di pojok kiri atas judul.
-- **Menu dan resep**: tiap menu bisa diubah namanya, dan bisa dihapus jika memang salah
+- **Menu dan Resep (dipisah)**: Menu berisi nama, harga, kategori, varian, foto, stok produk, sembunyikan/hapus. Resep (Lainnya > Resep) berisi bahan per menu, salin resep antar varian, HPP dan margin. Tombol "Atur resep menu ini" di Menu langsung membuka resepnya. Selain itu: tiap menu bisa diubah namanya, dan bisa dihapus jika memang salah
   buat. Menu yang sudah pernah terjual tidak bisa dihapus (supaya laporan lama tidak
   berubah) — pakai tombol Sembunyikan untuk kasus itu.
 - **Satuan bahan baku**: di halaman Bahan baku, buka "Kelola satuan" untuk menambah,
@@ -189,7 +189,7 @@ kelompok "Tanpa kategori" di urutan paling akhir. Butuh `supabase/11-kategori-ba
   menghitung ulang bahan tiap laku), dan HPP di laporan memakai HPP produksi yang sebenarnya,
   bukan estimasi resep. Ada tab Sesuaikan untuk mencatat produk rusak/hilang atau opname
   (hitung fisik). Menu yang belum pernah diproduksi tetap seperti sebelumnya, dibuat saat
-  dipesan, tanpa perlu diaktifkan manual. Muncul juga di halaman Menu dan resep (stok dan HPP)
+  dipesan, tanpa perlu diaktifkan manual. Muncul juga di halaman Menu (stok) dan Resep (HPP)
   dan Rekap penjualan (stok saat memilih menu, dengan peringatan kalau jumlah pesanan melebihi
   stok — tetap bisa disimpan). Ubah/hapus penjualan yang memakai stok produk ikut mengembalikan
   stoknya dengan benar. Butuh `supabase/9-stok-produk.sql` dan `supabase/10-satuan-produk-dan-akses.sql`.

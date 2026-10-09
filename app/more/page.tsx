@@ -7,7 +7,8 @@ import { supabase } from "@/lib/supabase";
 import { Card, Label, Notice, PageTitle, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 
 const LINKS = [
-  { href: "/menu", title: "Menu dan resep", desc: "Harga jual, resep, foto produk, dan estimasi margin", icon: "🍽️" },
+  { href: "/menu", title: "Menu", desc: "Nama, harga jual, kategori, varian, dan foto produk", icon: "🍽️" },
+  { href: "/recipes", title: "Resep", desc: "Bahan tiap menu, HPP, dan estimasi margin", icon: "📋" },
   { href: "/stock", title: "Stok bahan", desc: "Stok bahan baku, satuan, batas minimum", icon: "🌾" },
   { href: "/ingredients", title: "Bahan baku", desc: "Daftar bahan, satuan, batas stok minimum", icon: "🧀" },
   { href: "/expenses", title: "Biaya operasional", desc: "Sewa, gaji, listrik, gas, dan lainnya", icon: "💰" },
