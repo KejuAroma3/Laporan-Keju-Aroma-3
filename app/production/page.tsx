@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmt, rupiah } from "@/lib/format";
 import { loadRole } from "@/lib/authClient";
-import type { ProductStockRow } from "@/lib/types";
+import { groupByProduct } from "@/lib/group";
+import type { ProductGroup, ProductStockRow } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, Tabs, btnCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
 
@@ -14,6 +15,7 @@ type Done = (m: Msg) => void;
 export default function ProductionPage() {
   const [tab, setTab] = useState<Tab>("stok");
   const [rows, setRows] = useState<ProductStockRow[]>([]);
+  const [groups, setGroups] = useState<ProductGroup[]>([]);
   const [msg, setMsg] = useState<Msg>(null);
   const [isOwner, setIsOwner] = useState(false);
 
@@ -22,7 +24,12 @@ export default function ProductionPage() {
   }, []);
 
   async function load() {
-    const { data, error } = await supabase.from("v_product_stock").select("*").order("name");
+    const [res, g] = await Promise.all([
+      supabase.from("v_product_stock").select("*").order("name"),
+      supabase.from("product_groups").select("*"), // boleh gagal jika supabase/13-varian-produk.sql belum dijalankan
+    ]);
+    const { data, error } = res;
+    setGroups((g.data ?? []) as ProductGroup[]);
     if (error) {
       const missing = error.code === "42P01" || /does not exist/i.test(error.message);
       setMsg({
@@ -60,20 +67,31 @@ export default function ProductionPage() {
         ]}
       />
       <Notice msg={msg} />
-      {tab === "stok" && <StockList rows={rows} showValue={isOwner} />}
+      {tab === "stok" && <StockList rows={rows} groups={groups} showValue={isOwner} />}
       {tab === "produksi" && <ProduceForm rows={rows} onDone={done} />}
       {tab === "sesuaikan" && <AdjustForm rows={tracked} onDone={done} />}
     </div>
   );
 }
 
-function StockList({ rows, showValue }: { rows: ProductStockRow[]; showValue: boolean }) {
+function StockList({
+  rows,
+  groups,
+  showValue,
+}: {
+  rows: ProductStockRow[];
+  groups: ProductGroup[];
+  showValue: boolean;
+}) {
   const [q, setQ] = useState("");
   if (rows.length === 0) return <Empty>Belum ada menu. Tambahkan dulu di Menu dan resep.</Empty>;
 
   const term = q.trim().toLowerCase();
-  const filtered = term ? rows.filter((r) => r.name.toLowerCase().includes(term)) : rows;
+  const filtered = term
+    ? rows.filter((r) => r.name.toLowerCase().includes(term) || (r.variant_name ?? "").toLowerCase().includes(term))
+    : rows;
   const value = rows.reduce((s, r) => s + Math.max(0, r.stock_on_hand) * r.avg_product_cost, 0);
+  const buckets = groupByProduct(filtered, groups, "");
 
   return (
     <div>
@@ -88,34 +106,69 @@ function StockList({ rows, showValue }: { rows: ProductStockRow[]; showValue: bo
         <Empty>Tidak ada menu yang cocok dengan pencarian.</Empty>
       ) : (
         <ScrollList className="space-y-2">
-          {filtered.map((r) => (
-            <Card key={r.id} className={r.is_low ? "border-red-300" : ""}>
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="truncate font-semibold">{r.name}</div>
-                  {r.track_stock ? (
-                    <div className="text-sm text-stone-500">
-                      {showValue && `HPP ${rupiah(r.avg_product_cost)} per ${r.stock_unit}`}
-                      {showValue && r.min_product_stock > 0 ? `, minimum ${fmt(r.min_product_stock)}` : ""}
-                      {!showValue && r.min_product_stock > 0 ? `Minimum ${fmt(r.min_product_stock)} ${r.stock_unit}` : ""}
-                    </div>
-                  ) : (
-                    <div className="text-sm text-stone-400">Belum pernah diproduksi</div>
+          {buckets.map((bucket) => {
+            if (bucket.groupId === null) {
+              return bucket.items.map((r) => (
+                <Card key={r.id} className={r.is_low ? "border-red-300" : ""}>
+                  <StockRowContent r={r} label={r.name} showValue={showValue} />
+                </Card>
+              ));
+            }
+            const trackedItems = bucket.items.filter((r) => r.track_stock);
+            const totalStock = trackedItems.reduce((s, r) => s + r.stock_on_hand, 0);
+            const unit = trackedItems[0]?.stock_unit ?? "";
+            const anyLow = bucket.items.some((r) => r.is_low);
+            return (
+              <Card key={bucket.key} className={anyLow ? "border-red-300" : ""}>
+                <div className="mb-2 flex items-baseline justify-between gap-3">
+                  <h3 className="truncate font-semibold">{bucket.label}</h3>
+                  {trackedItems.length > 0 && (
+                    <span className="shrink-0 text-sm tabular-nums text-stone-500">
+                      Total {fmt(totalStock)} {unit}
+                    </span>
                   )}
                 </div>
-                <div className="shrink-0 text-right">
-                  <div className={`text-lg font-bold tabular-nums ${r.is_low ? "text-red-700" : r.track_stock ? "" : "text-stone-300"}`}>
-                    {r.track_stock ? fmt(r.stock_on_hand) : "–"}
-                  </div>
-                  {r.track_stock && <div className="text-xs text-stone-500">{r.stock_unit}</div>}
+                <div className="divide-y divide-stone-100">
+                  {bucket.items.map((r) => (
+                    <div key={r.id} className="py-2 first:pt-0 last:pb-0">
+                      <StockRowContent r={r} label={r.variant_name || r.name} showValue={showValue} />
+                    </div>
+                  ))}
                 </div>
-              </div>
-              {r.is_low && <div className="mt-2 text-xs font-semibold text-red-700">Stok menipis, segera produksi lagi.</div>}
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </ScrollList>
       )}
     </div>
+  );
+}
+
+function StockRowContent({ r, label, showValue }: { r: ProductStockRow; label: string; showValue: boolean }) {
+  return (
+    <>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate font-semibold">{label}</div>
+          {r.track_stock ? (
+            <div className="text-sm text-stone-500">
+              {showValue && `HPP ${rupiah(r.avg_product_cost)} per ${r.stock_unit}`}
+              {showValue && r.min_product_stock > 0 ? `, minimum ${fmt(r.min_product_stock)}` : ""}
+              {!showValue && r.min_product_stock > 0 ? `Minimum ${fmt(r.min_product_stock)} ${r.stock_unit}` : ""}
+            </div>
+          ) : (
+            <div className="text-sm text-stone-400">Belum pernah diproduksi</div>
+          )}
+        </div>
+        <div className="shrink-0 text-right">
+          <div className={`text-lg font-bold tabular-nums ${r.is_low ? "text-red-700" : r.track_stock ? "" : "text-stone-300"}`}>
+            {r.track_stock ? fmt(r.stock_on_hand) : "–"}
+          </div>
+          {r.track_stock && <div className="text-xs text-stone-500">{r.stock_unit}</div>}
+        </div>
+      </div>
+      {r.is_low && <div className="mt-2 text-xs font-semibold text-red-700">Stok menipis, segera produksi lagi.</div>}
+    </>
   );
 }
 

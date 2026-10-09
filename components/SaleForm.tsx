@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { CHANNEL_LABEL, rangeIso, rupiah, todayJkt } from "@/lib/format";
-import type { Channel, MenuItem, ProductStockRow } from "@/lib/types";
+import { groupByProduct } from "@/lib/group";
+import type { Channel, MenuItem, ProductGroup, ProductStockRow } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
 
@@ -30,6 +31,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const online = mode === "online";
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [stock, setStock] = useState<Record<string, ProductStockRow>>({});
+  const [productGroups, setProductGroups] = useState<ProductGroup[]>([]);
   const [cart, setCart] = useState<Record<string, Line>>({});
   const [channel, setChannel] = useState<Channel>("offline");
   const [date, setDate] = useState(todayJkt());
@@ -43,15 +45,17 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const [lastSavedId, setLastSavedId] = useState<string | null>(null);
 
   async function load() {
-    const [m, s] = await Promise.all([
+    const [m, s, g] = await Promise.all([
       supabase.from("menu_items").select("*").eq("is_active", true).order("category").order("name"),
       supabase.from("v_product_stock").select("*"), // boleh gagal jika supabase/9-stok-produk.sql belum dijalankan
+      supabase.from("product_groups").select("*"), // boleh gagal jika supabase/13-varian-produk.sql belum dijalankan
     ]);
     if (m.error) setMsg({ type: "err", text: m.error.message });
     else setMenus((m.data ?? []) as MenuItem[]);
     const stockMap: Record<string, ProductStockRow> = {};
     for (const row of (s.data ?? []) as ProductStockRow[]) stockMap[row.id] = row;
     setStock(stockMap);
+    setProductGroups((g.data ?? []) as ProductGroup[]);
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
@@ -275,63 +279,44 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
         <section key={cat} className="mb-4">
           <h2 className="mb-2 text-sm font-semibold text-stone-500">{cat}</h2>
           <div className="space-y-2">
-            {items.map((m) => {
-              const l = cart[m.id];
-              const st = stock[m.id];
-              const tracked = st?.track_stock ?? false;
-              const overStock = tracked && l && l.qty > st.stock_on_hand;
-              return (
-                <Card key={m.id} className={l ? "border-brand-600" : ""}>
-                  <div className="flex items-center gap-3">
-                    <Thumb url={m.photo_url} name={m.name} size={44} />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-semibold">{m.name}</div>
-                      <div className="text-sm text-stone-500">{rupiah(m.price)}</div>
-                      {tracked && (
-                        <div className={`text-xs font-medium ${overStock ? "text-red-700" : "text-stone-400"}`}>
-                          Stok: {st.stock_on_hand} {st.stock_unit}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {l && (
-                        <>
-                          <button
-                            onClick={() => change(m, -1)}
-                            className="h-11 w-11 rounded-full border border-stone-300 text-xl active:bg-stone-100"
-                            aria-label={`Kurangi ${m.name}`}
-                          >
-                            −
-                          </button>
-                          <span className="w-7 text-center text-lg font-bold tabular-nums">
-                            {l.qty}
-                          </span>
-                        </>
-                      )}
-                      <button
-                        onClick={() => change(m, 1)}
-                        className="h-11 w-11 rounded-full bg-brand-700 text-xl text-brand-fg active:bg-brand-800"
-                        aria-label={`Tambah ${m.name}`}
-                      >
-                        +
-                      </button>
-                    </div>
+            {groupByProduct(items, productGroups, "").map((bucket) =>
+              bucket.groupId === null ? (
+                bucket.items.map((m) => (
+                  <Card key={m.id} className={cart[m.id] ? "border-brand-600" : ""}>
+                    <ProductRow
+                      m={m}
+                      label={m.name}
+                      cart={cart}
+                      stock={stock}
+                      online={online}
+                      channel={channel}
+                      change={change}
+                      setPrice={setPrice}
+                    />
+                  </Card>
+                ))
+              ) : (
+                <Card key={bucket.key} className={bucket.items.some((m) => cart[m.id]) ? "border-brand-600" : ""}>
+                  <h3 className="mb-2 text-sm font-semibold">{bucket.label}</h3>
+                  <div className="divide-y divide-stone-100">
+                    {bucket.items.map((m) => (
+                      <div key={m.id} className="py-2 first:pt-0 last:pb-0">
+                        <ProductRow
+                          m={m}
+                          label={m.variant_name || m.name}
+                          cart={cart}
+                          stock={stock}
+                          online={online}
+                          channel={channel}
+                          change={change}
+                          setPrice={setPrice}
+                        />
+                      </div>
+                    ))}
                   </div>
-                  {online && l && (
-                    <div className="mt-3">
-                      <Label>{`Harga jual${channel === "offline" ? "" : " di aplikasi"} (per ${tracked ? st.stock_unit : "porsi"})`}</Label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        className={inputCls}
-                        value={l.price}
-                        onChange={(e) => setPrice(m.id, Number(e.target.value) || 0)}
-                      />
-                    </div>
-                  )}
                 </Card>
-              );
-            })}
+              )
+            )}
           </div>
         </section>
       ))}
@@ -436,5 +421,83 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
         </Card>
       )}
     </div>
+  );
+}
+
+// Isi satu baris produk (foto, nama, harga, stok, tombol +/−, dan kolom harga
+// saat dipilih). Dipakai bersama oleh menu berdiri sendiri (dibungkus Card
+// sendiri) dan oleh varian dalam satu produk dasar (beberapa baris dalam
+// satu Card), supaya tampilan dan perilakunya selalu sama.
+function ProductRow({
+  m,
+  label,
+  cart,
+  stock,
+  online,
+  channel,
+  change,
+  setPrice,
+}: {
+  m: MenuItem;
+  label: string;
+  cart: Record<string, Line>;
+  stock: Record<string, ProductStockRow>;
+  online: boolean;
+  channel: Channel;
+  change: (m: MenuItem, delta: number) => void;
+  setPrice: (id: string, price: number) => void;
+}) {
+  const l = cart[m.id];
+  const st = stock[m.id];
+  const tracked = st?.track_stock ?? false;
+  const overStock = tracked && l && l.qty > st.stock_on_hand;
+  return (
+    <>
+      <div className="flex items-center gap-3">
+        <Thumb url={m.photo_url} name={m.name} size={44} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-semibold">{label}</div>
+          <div className="text-sm text-stone-500">{rupiah(m.price)}</div>
+          {tracked && (
+            <div className={`text-xs font-medium ${overStock ? "text-red-700" : "text-stone-400"}`}>
+              Stok: {st.stock_on_hand} {st.stock_unit}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {l && (
+            <>
+              <button
+                onClick={() => change(m, -1)}
+                className="h-11 w-11 rounded-full border border-stone-300 text-xl active:bg-stone-100"
+                aria-label={`Kurangi ${m.name}`}
+              >
+                −
+              </button>
+              <span className="w-7 text-center text-lg font-bold tabular-nums">{l.qty}</span>
+            </>
+          )}
+          <button
+            onClick={() => change(m, 1)}
+            className="h-11 w-11 rounded-full bg-brand-700 text-xl text-brand-fg active:bg-brand-800"
+            aria-label={`Tambah ${m.name}`}
+          >
+            +
+          </button>
+        </div>
+      </div>
+      {online && l && (
+        <div className="mt-3">
+          <Label>{`Harga jual${channel === "offline" ? "" : " di aplikasi"} (per ${tracked ? st.stock_unit : "porsi"})`}</Label>
+          <input
+            type="number"
+            inputMode="numeric"
+            className={inputCls}
+            value={l.price}
+            onChange={(e) => setPrice(m.id, Number(e.target.value) || 0)}
+          />
+        </div>
+      )}
+    </>
   );
 }

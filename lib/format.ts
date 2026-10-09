@@ -88,3 +88,26 @@ export const labelWeek = (from: string, to: string) => {
 };
 
 export const labelMonth = (s: string) => new Date(`${s}T00:00:00Z`).toLocaleDateString("id-ID", monthYearFmt);
+
+// ---------- Tahun ----------
+export const yearStartIso = (s: string) => `${parts(s).y}-01-01`;
+export const yearEndIso = (s: string) => `${parts(s).y}-12-31`;
+export const addYearsIso = (s: string, n: number) => {
+  const { y, m, d } = parts(s);
+  return fromUtcMs(Date.UTC(y + n, m - 1, d));
+};
+export const labelYear = (s: string) => String(parts(s).y);
+
+const dayNumFmt: Intl.DateTimeFormatOptions = { day: "numeric", timeZone: "UTC" };
+const weekdayShortFmt: Intl.DateTimeFormatOptions = { weekday: "short", timeZone: "UTC" };
+const monthShortFmt: Intl.DateTimeFormatOptions = { month: "short", timeZone: "UTC" };
+
+// "5 Sep" dari tanggal YYYY-MM-DD, dipakai di daftar harian dalam tampilan bulanan
+export const labelDayShort = (s: string) =>
+  `${new Date(`${s}T00:00:00Z`).toLocaleDateString("id-ID", weekdayShortFmt)}, ${new Date(`${s}T00:00:00Z`).toLocaleDateString("id-ID", dayNumFmt)}`;
+
+// "Sep" dari tanggal YYYY-MM-DD, dipakai di daftar bulan dalam tampilan tahunan
+export const labelMonthShort = (s: string) => new Date(`${s}T00:00:00Z`).toLocaleDateString("id-ID", monthShortFmt);
+
+// Tanggal kalender WIB (YYYY-MM-DD) dari timestamp ISO, dipakai untuk mengelompokkan riwayat per hari
+export const dayJkt = (iso: string) => jkt(new Date(iso));

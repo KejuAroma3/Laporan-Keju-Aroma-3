@@ -21,7 +21,14 @@ export type MenuItem = {
   avg_product_cost: number;
   min_product_stock: number;
   stock_unit: string;
+  product_group_id: string | null;
+  variant_name: string | null;
 };
+
+// Produk dasar: wadah pengelompokan untuk menu yang beda varian (isi/
+// topping) dari produk yang sama, murni untuk tampilan (lihat catatan
+// di supabase/13-varian-produk.sql).
+export type ProductGroup = { id: string; name: string; category: string | null };
 
 // Dari view v_product_stock: stok produk jadi per menu, dihitung dari
 // riwayat produksi/penjualan/waste/penyesuaian (product_movements).
@@ -33,6 +40,8 @@ export type ProductStockRow = {
   avg_product_cost: number;
   min_product_stock: number;
   stock_unit: string;
+  product_group_id: string | null;
+  variant_name: string | null;
   stock_on_hand: number;
   is_low: boolean;
 };
@@ -76,6 +85,8 @@ export type BestSeller = {
   menu: string;
   category: string | null;
   photo_url: string | null;
+  product_group_id: string | null;
+  variant_name: string | null;
   qty_sold: number;
   revenue: number;
   gross_profit: number;

@@ -24,8 +24,8 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
    `supabase/3-foto-dan-dashboard.sql`, `supabase/4-karyawan.sql`, `supabase/5-satuan-bahan.sql`,
    `supabase/6-pengaturan-aplikasi.sql` (butuh tabel dari langkah karyawan), lalu
    `supabase/7-tanggal-belanja.sql` (mengganti fungsi record_purchase; jangan jalankan ulang 1-skema.sql sesudahnya),
-   `supabase/8-koreksi-penjualan.sql`, `supabase/9-stok-produk.sql`, `supabase/10-satuan-produk-dan-akses.sql`, `supabase/11-kategori-bahan.sql`, lalu
-   `supabase/12-pengaturan-struk.sql`.
+   `supabase/8-koreksi-penjualan.sql`, `supabase/9-stok-produk.sql`, `supabase/10-satuan-produk-dan-akses.sql`, `supabase/11-kategori-bahan.sql`, `supabase/12-pengaturan-struk.sql`, lalu
+   `supabase/13-varian-produk.sql`.
 2. Sudah pernah menjalankan skema sebelumnya: cukup jalankan file yang belum pernah dijalankan,
    urut dari nomor terkecil. Semua file aman dijalankan berulang.
 3. Authentication > Users: buat akun untuk Anda dan staf.
@@ -65,6 +65,23 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
   memilih Offline. Halaman "Jual" yang lama sudah dihapus. Di bawah form pencatatan ada
   daftar penjualan untuk platform dan tanggal yang dipilih, dengan tombol Ubah dan Hapus
   untuk mengoreksi kesalahan input (butuh `supabase/8-koreksi-penjualan.sql`).
+
+## Produk dasar dan varian
+
+Untuk menu yang beda varian (isi/topping) dari produk yang sama, misalnya "Keju Aroma" dengan
+varian Original dan Cokelat. Di Menu dan resep, isi kolom "Produk dasar" dan "Nama varian"
+saat menambah atau mengubah menu. Varian dari produk dasar yang sama dikelompokkan berdekatan
+di Menu dan resep, Rekap penjualan (satu kartu per produk dasar, tiap varian satu baris), dan
+Produksi (dengan total stok gabungan semua varian). Di Laporan > Terlaris ada pilihan "Per
+varian" dan "Per produk dasar" (jumlah terjual, omzet, dan laba semua varian dijumlahkan).
+
+Tiap varian tetap menu penuh sendiri: resep, stok produksi, dan HPP-nya terpisah. Ini disengaja,
+supaya mengubah resep satu varian tidak diam-diam mengubah HPP varian lain. Untuk menambah
+varian baru dengan cepat, buka varian baru itu di Menu dan resep (selama resepnya masih kosong)
+dan pakai "Salin resep dari varian lain", lalu ganti bahan yang beda (isi/toppingnya).
+Menu yang berdiri sendiri cukup dikosongkan kolom produk dasarnya. Impor massal (CSV) belum
+mendukung kolom produk dasar/varian; atur lewat Menu dan resep setelah impor.
+Butuh `supabase/13-varian-produk.sql`.
 
 ## Cetak struk
 
@@ -142,11 +159,20 @@ kelompok "Tanpa kategori" di urutan paling akhir. Butuh `supabase/11-kategori-ba
   bisa dibuka untuk melihat tiap transaksinya. Tampilan "Semua transaksi" menampilkan daftar
   urut waktu lengkap dengan catatan nota. Ada pencarian dan tombol unduh CSV. Tombol "Semua"
   di atas laporan menampilkan sepanjang waktu. Tanggal belanja adalah tanggal yang dipilih di
-  Stok > Masuk (pembelian lama sebelum ada kolom tanggal memakai tanggal saat dicatat). Reset stok menghapus riwayat pembelian bahan yang direset dari laporan ini.
-- **Koreksi harga bahan**: buka bahan apa pun (lewat Bahan baku atau Stok > Sisa), isi
+  Stok > Belanja (pembelian lama sebelum ada kolom tanggal memakai tanggal saat dicatat). Reset stok menghapus riwayat pembelian bahan yang direset dari laporan ini.
+- **Riwayat belanja** (Stok bahan > Belanja): di bawah form pembelian ada pilihan Harian,
+  Bulanan, dan Tahunan dengan tombol panah untuk pindah periode. Harian: daftar belanja satu
+  hari beserta total. Bulanan: total per hari, ketuk satu hari untuk melihat rinciannya. Tahunan:
+  total per bulan, ketuk satu bulan untuk membukanya di tampilan Bulanan. Setiap catatan bisa
+  Diubah (jumlah, total harga, tanggal, catatan) atau Dihapus (ada konfirmasi). Perubahan ini
+  langsung menyesuaikan jumlah stok bahan dan Laporan > Belanja, tetapi TIDAK menghitung ulang
+  harga rata-rata bahan, dan HPP penjualan yang sudah lewat tidak berubah. Tab "Sisa" sudah
+  dihapus dari Stok bahan; sisa stok per bahan tetap terlihat di Lainnya > Bahan baku.
+  Tidak perlu SQL baru.
+- **Koreksi harga bahan**: buka bahan apa pun (lewat Lainnya > Bahan baku), isi
   "Total harga beli" dan "Jumlah barang", lalu aplikasi menghitung harga rata-rata per satuan
   otomatis. Kosongkan keduanya jika harga tidak diubah. Ini hanya mengoreksi harga, tidak
-  menambah stok dan tidak tercatat sebagai pembelian (pakai Stok > Masuk untuk itu). Laporan
+  menambah stok dan tidak tercatat sebagai pembelian (pakai Stok > Belanja untuk itu). Laporan
   penjualan yang sudah lewat tidak berubah.
 - **Reset stok** (Stok > Reset): mengulang input stok dari awal, untuk satu bahan atau semua
   bahan. Stok jadi 0, harga rata-rata jadi Rp0, dan riwayat stok masuk/keluar/opname bahan

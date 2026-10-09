@@ -6,6 +6,7 @@ import { CHANNEL_LABEL, daysAgoJkt, fmt, monthStartJkt, pct, rangeIso, rupiah, t
 import type { BestSeller, Channel, Pnl } from "@/lib/types";
 import { Bar, Card, Empty, Notice, PageTitle, Tabs, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import BestSellerList from "@/components/BestSellerList";
+import { mergeSalesByProduct } from "@/lib/group";
 import OwnerOnly from "@/components/OwnerOnly";
 import PurchaseReport, { type Purchase } from "@/components/PurchaseReport";
 
@@ -21,6 +22,8 @@ export default function ReportsPage() {
   const [tab, setTab] = useState<Tab>("terlaris");
   const [sort, setSort] = useState<SortKey>("qty_sold");
   const [best, setBest] = useState<BestSeller[]>([]);
+  const [groupNames, setGroupNames] = useState<Record<string, string>>({});
+  const [bestView, setBestView] = useState<"varian" | "produk">("varian");
   const [pnl, setPnl] = useState<Pnl | null>(null);
   const [chan, setChan] = useState<ChannelRow[]>([]);
   const [exp, setExp] = useState<Expense[]>([]);
@@ -30,7 +33,7 @@ export default function ReportsPage() {
 
   async function load() {
     const { start, end } = rangeIso(from, to);
-    const [b, p, c, e, m, pu] = await Promise.all([
+    const [b, p, c, e, m, pu, pg] = await Promise.all([
       supabase.rpc("report_best_sellers", { p_from: from, p_to: to }),
       supabase.rpc("report_pnl", { p_from: from, p_to: to }),
       supabase.rpc("report_channels", { p_from: from, p_to: to }),
@@ -48,10 +51,14 @@ export default function ReportsPage() {
         .gte("created_at", start)
         .lte("created_at", end)
         .order("created_at", { ascending: false }),
+      supabase.from("product_groups").select("id, name"), // boleh gagal jika supabase/13-varian-produk.sql belum dijalankan
     ]);
     const err = [b, p, c, e, m, pu].find((x) => x.error)?.error;
     setMsg(err ? { type: "err", text: err.message } : null);
     setBest((b.data ?? []) as BestSeller[]);
+    const names: Record<string, string> = {};
+    for (const g of (pg.data ?? []) as { id: string; name: string }[]) names[g.id] = g.name;
+    setGroupNames(names);
     setPnl(((p.data ?? []) as Pnl[])[0] ?? null);
     setChan((c.data ?? []) as ChannelRow[]);
     setExp((e.data ?? []) as Expense[]);
@@ -75,7 +82,8 @@ export default function ReportsPage() {
   ).sort((a, b) => b[1] - a[1]);
   const opex = exp.reduce((s, r) => s + r.amount, 0);
 
-  const sortedBest = [...best].sort((a, b) => b[sort] - a[sort]);
+  const mergedBest = mergeSalesByProduct(best, groupNames);
+  const sortedBest = [...(bestView === "produk" ? mergedBest : best)].sort((a, b) => b[sort] - a[sort]);
   const chanSorted = [...chan].sort(
     (a, b) => b.gross - b.discounts - b.fees - b.cogs - (a.gross - a.discounts - a.fees - a.cogs)
   );
@@ -113,6 +121,17 @@ export default function ReportsPage() {
 
       {tab === "terlaris" && (
         <div>
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            {([["varian", "Per varian"], ["produk", "Per produk dasar"]] as const).map(([k, l]) => (
+              <button
+                key={k}
+                onClick={() => setBestView(k)}
+                className={`h-10 rounded-lg border text-sm font-semibold ${bestView === k ? "border-stone-800 bg-stone-800 text-white" : "border-stone-300 bg-white text-stone-700"}`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
           <div className="mb-3 grid grid-cols-3 gap-2">
             {([["qty_sold", "Terjual"], ["revenue", "Omzet"], ["gross_profit", "Laba"]] as [SortKey, string][]).map(([k, l]) => (
               <button

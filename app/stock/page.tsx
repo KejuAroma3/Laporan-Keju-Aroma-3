@@ -4,31 +4,25 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmt, labelDay, rupiah, todayJkt } from "@/lib/format";
 import { groupByCategory } from "@/lib/group";
-import type { StockRow, Unit } from "@/lib/types";
+import type { StockRow } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, Tabs, btnCls, btnDangerCls, inputCls, type Msg } from "@/components/ui";
-import IngredientEditor from "@/components/IngredientEditor";
+import PurchaseLog from "@/components/PurchaseLog";
 import OwnerOnly from "@/components/OwnerOnly";
 import { loadRole, type RoleState } from "@/lib/authClient";
 
-type Tab = "sisa" | "masuk" | "keluar" | "opname" | "reset";
+type Tab = "masuk" | "keluar" | "opname" | "reset";
 type Done = (m: Msg) => void;
 
 export default function StockPage() {
-  const [tab, setTab] = useState<Tab>("sisa");
+  const [tab, setTab] = useState<Tab>("masuk");
   const [rows, setRows] = useState<StockRow[]>([]);
-  const [units, setUnits] = useState<Unit[]>([]);
   const [msg, setMsg] = useState<Msg>(null);
   const [role, setRole] = useState<RoleState>({ status: "loading" });
 
   async function load() {
-    const [i, u] = await Promise.all([
-      supabase.from("v_stock").select("*").order("name"),
-      supabase.from("units").select("*").order("name"),
-    ]);
-    const err = [i, u].find((x) => x.error)?.error;
-    if (err) setMsg({ type: "err", text: err.message });
+    const i = await supabase.from("v_stock").select("*").order("name");
+    if (i.error) setMsg({ type: "err", text: i.error.message });
     setRows((i.data ?? []) as StockRow[]);
-    setUnits((u.data ?? []) as Unit[]);
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); loadRole().then(setRole); }, []);
@@ -46,15 +40,13 @@ export default function StockPage() {
         value={tab}
         onChange={(t) => { setTab(t); setMsg(null); }}
         tabs={[
-          { id: "sisa", label: "Sisa" },
-          { id: "masuk", label: "Masuk" },
+          { id: "masuk", label: "Belanja" },
           { id: "keluar", label: "Keluar" },
           { id: "opname", label: "Opname" },
           { id: "reset", label: "Reset" },
         ]}
       />
       <Notice msg={msg} />
-      {tab === "sisa" && <StockList rows={rows} units={units} onDone={done} />}
       {tab === "masuk" && <PurchaseForm rows={rows} onDone={done} />}
       {tab === "keluar" && <WasteForm rows={rows} onDone={done} />}
       {tab === "opname" && <OpnameForm rows={rows} onDone={done} />}
@@ -62,70 +54,6 @@ export default function StockPage() {
         <ResetForm rows={rows} blocked={role.status === "ready" && role.role === "staff"} onDone={done} />
       )}
       </OwnerOnly>
-    </div>
-  );
-}
-
-function StockList({ rows, units, onDone }: { rows: StockRow[]; units: Unit[]; onDone: Done }) {
-  const [q, setQ] = useState("");
-  const [open, setOpen] = useState<string | null>(null);
-
-  if (rows.length === 0) return <Empty>Belum ada bahan. Tambahkan di Lainnya › Bahan baku.</Empty>;
-  const value = rows.reduce((s, r) => s + Math.max(0, r.on_hand) * r.avg_cost, 0);
-  const term = q.trim().toLowerCase();
-  const searched = term ? rows.filter((r) => r.name.toLowerCase().includes(term)) : rows;
-  const grouped = groupByCategory(searched, (r) => r.category).map(
-    ([cat, items]) =>
-      [cat, [...items].sort((a, b) => Number(b.is_low) - Number(a.is_low) || a.name.localeCompare(b.name))] as const
-  );
-  const filtered = searched;
-
-  return (
-    <div>
-      <Card className="mb-3">
-        <div className="text-sm text-stone-500">Nilai persediaan saat ini</div>
-        <div className="text-xl font-bold tabular-nums">{rupiah(value)}</div>
-      </Card>
-      <SearchInput value={q} onChange={setQ} placeholder="Cari bahan…" />
-      {filtered.length === 0 ? (
-        <Empty>Tidak ada bahan yang cocok dengan pencarian.</Empty>
-      ) : (
-        <ScrollList className="space-y-4">
-          {grouped.map(([cat, items]) => (
-            <section key={cat}>
-              <h2 className="mb-2 text-sm font-semibold text-stone-500">{cat}</h2>
-              <div className="space-y-2">
-                {items.map((r) => (
-                  <Card key={r.id} className={r.is_low ? "border-red-300" : ""}>
-                    <button className="flex w-full items-center justify-between gap-3 text-left" onClick={() => setOpen(open === r.id ? null : r.id)}>
-                      <div className="min-w-0">
-                        <div className="truncate font-semibold">{r.name}</div>
-                        <div className="text-sm text-stone-500">
-                          {rupiah(r.avg_cost)} per {r.unit}, minimum {fmt(r.min_stock)} {r.unit}
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <div className={`text-lg font-bold tabular-nums ${r.is_low ? "text-red-700" : ""}`}>
-                          {fmt(r.on_hand)}
-                        </div>
-                        <div className="text-xs text-stone-500">{r.unit}</div>
-                      </div>
-                    </button>
-                    {r.is_low && <div className="mt-2 text-xs font-semibold text-red-700">Stok menipis, segera belanja.</div>}
-                    {open === r.id && (
-                      <IngredientEditor
-                        row={r}
-                        units={units}
-                        onSaved={(m) => { onDone(m); setOpen(null); }}
-                      />
-                    )}
-                  </Card>
-                ))}
-              </div>
-            </section>
-          ))}
-        </ScrollList>
-      )}
     </div>
   );
 }
@@ -155,6 +83,7 @@ function PurchaseForm({ rows, onDone }: { rows: StockRow[]; onDone: Done }) {
   const [note, setNote] = useState("");
   const [date, setDate] = useState(todayJkt());
   const [busy, setBusy] = useState(false);
+  const [historyKey, setHistoryKey] = useState(0);
   const sel = rows.find((r) => r.id === ing);
   const perUnit = Number(qty) > 0 ? Number(total) / Number(qty) : 0;
   const today = todayJkt();
@@ -199,9 +128,11 @@ function PurchaseForm({ rows, onDone }: { rows: StockRow[]; onDone: Done }) {
         ? `Pembelian tercatat di tanggal ${labelDay(date)}. Stok bertambah.`
         : "Pembelian tercatat. Stok bertambah.",
     });
+    setHistoryKey((k) => k + 1);
   }
 
   return (
+    <>
     <Card className="space-y-4">
       <p className="text-sm text-stone-500">
         Salin saja angka dari nota belanja: jumlah barang dan total yang dibayar. Harga per satuan
@@ -241,6 +172,9 @@ function PurchaseForm({ rows, onDone }: { rows: StockRow[]; onDone: Done }) {
         {busy ? "Menyimpan…" : "Simpan pembelian"}
       </button>
     </Card>
+
+      <PurchaseLog refreshKey={historyKey} onChanged={onDone} />
+    </>
   );
 }
 
