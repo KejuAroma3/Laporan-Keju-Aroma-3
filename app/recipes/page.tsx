@@ -222,10 +222,19 @@ function RecipeEditor({
       onChanged({ type: "err", text: "Varian itu belum punya resep untuk disalin." });
       return;
     }
+    const anyPerSale = source.some((r) => r.per_sale);
     const { error } = await supabase
       .from("recipe_items")
       .upsert(
-        source.map((r) => ({ menu_item_id: menu.id, ingredient_id: r.ingredient_id, qty: r.qty, ...(r.per_sale ? { per_sale: true } : {}) })),
+        source.map((r) => ({
+          menu_item_id: menu.id,
+          ingredient_id: r.ingredient_id,
+          qty: r.qty,
+          // Semua baris harus punya kolom yang sama: kalau sebagian ada per_sale dan sebagian tidak,
+          // baris tanpa kolom itu dikirim sebagai null dan ditolak database (kolomnya wajib terisi).
+          // per_sale hanya dikirim bila ada yang memakainya, supaya tetap jalan sebelum SQL 17.
+          ...(anyPerSale ? { per_sale: Boolean(r.per_sale) } : {}),
+        })),
         { onConflict: "menu_item_id,ingredient_id" }
       );
     onChanged(
