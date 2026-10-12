@@ -123,10 +123,16 @@ ongkir". Butuh `supabase/16-rincian-diskon.sql`.
 - Penjualan lama yang hanya punya satu angka diskon tampil sebagai satu baris "Diskon".
 
 ## Kemasan dan perlengkapan (plastik, box, handgloves, label, kabel ties)
-- **Cek stok**: Lainnya > Cek stok bahan & kemasan. Filter kategori (Bahan baku, Bahan kemasan, Bahan
-  habis pakai), pencarian, tombol "menipis atau habis saja", sisa dan minimum tiap barang, serta
-  penanda barang yang belum masuk resep manapun (belum ikut HPP). Barang baru ditambah di Lainnya >
-  Bahan baku dengan kategori yang sesuai, dibeli lewat Stok bahan > Belanja.
+- **Stok kemasan**: di menu utama "Stok" ada pilihan **Stok produksi** dan **Stok kemasan** (tombol
+  di atas halaman). Stok kemasan khusus pemilik, berisi barang dengan kategori selain Bahan baku
+  (mis. Bahan kemasan, Bahan habis pakai), dengan empat tab:
+  - **Stok**: sisa tiap barang, minimum, nilai, filter kategori, pencarian, "menipis atau habis saja",
+    dan penanda barang yang belum masuk resep manapun (belum ikut HPP).
+  - **Belanja**: catat pembelian plastik, box, dll (jumlah, total harga dari nota, tanggal), lengkap dengan
+    riwayat per hari/bulan/tahun yang bisa diubah/dihapus, hanya untuk barang kemasan.
+  - **Pakai**: catat pemakaian banyak barang sekaligus (mis. handgloves, kabel ties) dengan satu kali simpan.
+  - **Opname**: hitung fisik, selisih otomatis menyesuaikan stok.
+  Barang baru ditambah di Lainnya > Bahan baku dengan kategori yang sesuai.
 - **Masuk HPP**: masukkan ke Resep seperti bahan lain. Kolom "Untuk berapa" membantu barang yang
   dipakai sedikit-sedikit: 1 pasang handgloves untuk 50 pcs = 0,02 per pcs. Resep menampilkan
   perkiraan HPP per penjualan beserta rincian per kategori (bahan baku, kemasan, habis pakai).

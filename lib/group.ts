@@ -98,3 +98,10 @@ export function mergeSalesByProduct<T extends MergeableSale>(items: T[], groupNa
   }
   return [...standalone, ...byGroup.values()];
 }
+
+// Barang kemasan dan perlengkapan = bahan yang punya kategori selain "Bahan baku"
+// (mis. "Bahan kemasan", "Bahan habis pakai"). Dipakai halaman Stok kemasan.
+export const isSupplyCategory = (category: string | null | undefined) => {
+  const c = (category ?? "").trim().toLowerCase();
+  return c !== "" && c !== "bahan baku";
+};

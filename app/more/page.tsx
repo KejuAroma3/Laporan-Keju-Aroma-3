@@ -9,7 +9,6 @@ import { Card, Label, Notice, PageTitle, btnCls, btnGhostCls, inputCls, type Msg
 const LINKS = [
   { href: "/menu", title: "Menu", desc: "Nama, harga jual, kategori, varian, dan foto produk", icon: "🍽️" },
   { href: "/recipes", title: "Resep", desc: "Bahan tiap menu, HPP, dan estimasi margin", icon: "📋" },
-  { href: "/stock/check", title: "Cek stok bahan & kemasan", desc: "Sisa plastik, box, handgloves, label, dan bahan lain", icon: "📦" },
   { href: "/stock", title: "Stok bahan", desc: "Stok bahan baku, satuan, batas minimum", icon: "🌾" },
   { href: "/ingredients", title: "Bahan baku", desc: "Daftar bahan, satuan, batas stok minimum", icon: "🧀" },
   { href: "/expenses", title: "Biaya operasional", desc: "Sewa, gaji, listrik, gas, dan lainnya", icon: "💰" },

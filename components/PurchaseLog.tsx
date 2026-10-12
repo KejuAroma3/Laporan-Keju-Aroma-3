@@ -13,6 +13,7 @@ type Mode = "harian" | "bulanan" | "tahunan";
 
 type PurchaseRow = {
   id: string;
+  ingredient_id: string;
   qty: number;
   unit_cost: number | null;
   note: string | null;
@@ -29,7 +30,7 @@ async function fetchPurchases(from: string, to: string): Promise<{ rows: Purchas
   for (let offset = 0; ; offset += PAGE) {
     const { data, error } = await supabase
       .from("stock_movements")
-      .select("id, qty, unit_cost, note, created_at, ingredients(name, unit)")
+      .select("id, ingredient_id, qty, unit_cost, note, created_at, ingredients(name, unit)")
       .eq("type", "purchase")
       .gte("created_at", start)
       .lte("created_at", end)
@@ -43,14 +44,16 @@ async function fetchPurchases(from: string, to: string): Promise<{ rows: Purchas
   return { rows: all, error: null };
 }
 
-export default function PurchaseLog({ refreshKey, onChanged }: { refreshKey: number; onChanged: (m: Msg) => void }) {
+export default function PurchaseLog({ refreshKey, onChanged, onlyIds }: { refreshKey: number; onChanged: (m: Msg) => void; onlyIds?: Set<string> }) {
   const [mode, setMode] = useState<Mode>("harian");
   const [anchor, setAnchor] = useState(todayJkt());
-  const [rows, setRows] = useState<PurchaseRow[]>([]);
+  const [allRows, setRows] = useState<PurchaseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [openDay, setOpenDay] = useState<string | null>(null);
+  // Saring ke bahan tertentu (mis. hanya kemasan) tanpa mengubah kueri.
+  const rows = useMemo(() => (onlyIds ? allRows.filter((r) => onlyIds.has(r.ingredient_id)) : allRows), [allRows, onlyIds]);
 
   const today = todayJkt();
   const range = useMemo(() => {

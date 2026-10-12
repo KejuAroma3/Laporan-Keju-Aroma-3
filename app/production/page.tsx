@@ -6,6 +6,7 @@ import { fmt, rupiah } from "@/lib/format";
 import { loadRole } from "@/lib/authClient";
 import { buildProductionEntries, moveKey, visibleEntries, type ProductionEntry } from "@/lib/production";
 import type { ProductGroup, ProductStockRow } from "@/lib/types";
+import StockSwitch from "@/components/StockSwitch";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, Tabs, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 
 type Tab = "stok" | "produksi" | "sesuaikan" | "atur";
@@ -62,8 +63,9 @@ export default function ProductionPage() {
   return (
     <div>
       <PageTitle sub="Untuk menu yang diproduksi dalam batch (digoreng/dikemas duluan), bukan dibuat saat dipesan.">
-        Produksi
+        Stok
       </PageTitle>
+      <StockSwitch />
       <Tabs
         value={tab}
         onChange={(t) => { setTab(t); setMsg(null); }}
