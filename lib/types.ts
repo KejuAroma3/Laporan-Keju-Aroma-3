@@ -23,12 +23,22 @@ export type MenuItem = {
   stock_unit: string;
   product_group_id: string | null;
   variant_name: string | null;
+  pack_qty?: number; // isi per penjualan (supabase/15-isi-per-penjualan.sql), bawaan 1
 };
 
 // Produk dasar: wadah pengelompokan untuk menu yang beda varian (isi/
 // topping) dari produk yang sama, murni untuk tampilan (lihat catatan
 // di supabase/13-varian-produk.sql).
-export type ProductGroup = { id: string; name: string; category: string | null };
+export type ProductGroup = {
+  id: string;
+  name: string;
+  category: string | null;
+  // Kolom dari supabase/14-urutan-produksi.sql; kosong/undefined kalau SQL itu belum dijalankan.
+  production_order?: number;
+  hide_in_production?: boolean;
+  shared_stock?: boolean;
+  stock_menu_id?: string | null;
+};
 
 // Dari view v_product_stock: stok produk jadi per menu, dihitung dari
 // riwayat produksi/penjualan/waste/penyesuaian (product_movements).
@@ -44,6 +54,8 @@ export type ProductStockRow = {
   variant_name: string | null;
   stock_on_hand: number;
   is_low: boolean;
+  production_order?: number; // supabase/14-urutan-produksi.sql
+  hide_in_production?: boolean;
 };
 
 export type RecipeItem = {

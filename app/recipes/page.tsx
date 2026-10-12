@@ -8,6 +8,7 @@ import { groupByCategory, groupByProduct } from "@/lib/group";
 import type { Ingredient, MenuItem, ProductGroup, ProductStockRow, RecipeItem } from "@/lib/types";
 import { Card, Empty, Notice, PageTitle, ScrollList, SearchInput, btnCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
+import { resolveSharedStock } from "@/lib/production";
 import OwnerOnly from "@/components/OwnerOnly";
 
 export default function RecipesPage() {
@@ -34,9 +35,7 @@ export default function RecipesPage() {
     setIngs((i.data ?? []) as Ingredient[]);
     setRecipes((r.data ?? []) as RecipeItem[]);
     setGroups((g.data ?? []) as ProductGroup[]);
-    const stockMap: Record<string, ProductStockRow> = {};
-    for (const row of (s.data ?? []) as ProductStockRow[]) stockMap[row.id] = row;
-    setStock(stockMap);
+    setStock(resolveSharedStock((s.data ?? []) as ProductStockRow[], (g.data ?? []) as ProductGroup[]));
   }
   useEffect(() => {
     load();
@@ -93,7 +92,7 @@ export default function RecipesPage() {
                       const count = recipes.filter((r) => r.menu_item_id === m.id).length;
                       const st = stock[m.id];
                       const tracked = st?.track_stock ?? false;
-                      const hpp = tracked ? m.avg_product_cost : cost(m.id);
+                      const hpp = tracked ? (st?.avg_product_cost ?? m.avg_product_cost) * (m.pack_qty ?? 1) : cost(m.id);
                       const otherVariants = bucket.items.filter((x) => x.id !== m.id);
                       return (
                         <Card key={m.id} className={m.is_active ? "" : "opacity-60"}>
@@ -103,15 +102,15 @@ export default function RecipesPage() {
                               <div className="truncate font-semibold">{m.variant_name || m.name}</div>
                               <div className="truncate text-sm text-stone-500">
                                 {m.variant_name ? `${m.name} · ` : ""}
-                                {count > 0 ? `${count} bahan` : "Belum ada bahan"}
+                                {count > 0 ? `${count} bahan` : tracked ? "Memakai stok & HPP produk dasar" : "Belum ada bahan"}
                               </div>
                             </div>
                             <div className="shrink-0 text-right text-sm">
-                              {count > 0 ? (
+                              {count > 0 || tracked ? (
                                 <>
                                   <div className="font-semibold tabular-nums">HPP {rupiah(hpp)}</div>
                                   <div className="text-brand-800">margin {pct(m.price - hpp, m.price)}</div>
-                                  {tracked && <div className="text-xs text-stone-400">dari produksi</div>}
+                                  {tracked && <div className="text-xs text-stone-400">dari produksi{(m.pack_qty ?? 1) !== 1 ? `, isi ${m.pack_qty}` : ""}</div>}
                                 </>
                               ) : (
                                 <div className="font-medium text-amber-700">Resep kosong</div>

@@ -9,6 +9,7 @@ import type { MenuItem, ProductGroup, ProductStockRow, RecipeItem } from "@/lib/
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
 import PhotoUpload from "@/components/PhotoUpload";
+import { resolveSharedStock } from "@/lib/production";
 import OwnerOnly from "@/components/OwnerOnly";
 
 // Mencari produk dasar berdasarkan nama (dibuat kalau belum ada), dipakai
@@ -43,6 +44,7 @@ export default function MenuPage() {
   const [price, setPrice] = useState("");
   const [productGroup, setProductGroup] = useState("");
   const [variantName, setVariantName] = useState("");
+  const [pack, setPack] = useState("1");
   const [msg, setMsg] = useState<Msg>(null);
 
   async function load() {
@@ -57,9 +59,7 @@ export default function MenuPage() {
     setMenus((m.data ?? []) as MenuItem[]);
     setRecipes((r.data ?? []) as RecipeItem[]);
     setGroups((g.data ?? []) as ProductGroup[]);
-    const stockMap: Record<string, ProductStockRow> = {};
-    for (const row of (s.data ?? []) as ProductStockRow[]) stockMap[row.id] = row;
-    setStock(stockMap);
+    setStock(resolveSharedStock((s.data ?? []) as ProductStockRow[], (g.data ?? []) as ProductGroup[]));
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
@@ -97,6 +97,8 @@ export default function MenuPage() {
         price: Number(price),
         product_group_id: groupId,
         variant_name: variantName.trim() || null,
+        // hanya dikirim kalau bukan 1, supaya tetap jalan sebelum supabase/15-isi-per-penjualan.sql dijalankan
+        ...(Number(pack) > 0 && Number(pack) !== 1 ? { pack_qty: Number(pack) } : {}),
       })
       .select("id")
       .single();
@@ -104,7 +106,7 @@ export default function MenuPage() {
       setMsg({ type: "err", text: error.message.includes("duplicate") ? "Nama menu sudah ada." : error.message });
       return;
     }
-    setName(""); setCategory(""); setPrice(""); setProductGroup(""); setVariantName("");
+    setName(""); setCategory(""); setPrice(""); setProductGroup(""); setVariantName(""); setPack("1");
     setMsg({ type: "ok", text: "Menu ditambahkan. Lengkapi foto di bawah, lalu isi bahannya di Lainnya › Resep agar HPP dan stok terhitung." });
     setOpen(data?.id ?? null);
     load();
@@ -165,6 +167,15 @@ export default function MenuPage() {
           misalnya &quot;Keju Aroma&quot; dengan varian Original dan Cokelat — supaya keduanya dikelompokkan
           berdekatan di seluruh aplikasi. Kosongkan kalau menu ini berdiri sendiri.
         </p>
+        <div>
+          <Label>Isi per penjualan (pcs stok)</Label>
+          <input type="number" inputMode="decimal" className={inputCls} value={pack} onChange={(e) => setPack(e.target.value)} placeholder="1" />
+          <p className="mt-1 text-xs text-stone-500">
+            Berapa pcs dari stok produk yang keluar tiap 1 kali terjual. Contoh: &quot;isi 5&quot; diisi 5,
+            &quot;Hampers isi 15&quot; diisi 15. Kalau satu penjualan = 1 pcs, biarkan 1. Harga jual di atas
+            adalah harga per penjualan (per kotak), bukan per pcs.
+          </p>
+        </div>
         <button className={`${btnCls} w-full`} onClick={add}>Tambah menu</button>
       </Card>
 
@@ -182,7 +193,7 @@ export default function MenuPage() {
                   <h2 className="mb-2 text-sm font-semibold text-stone-500">{bucket.label}</h2>
                   <div className="space-y-2">
                     {bucket.items.map((m) => {
-                      const hasRecipe = recipes.some((r) => r.menu_item_id === m.id);
+                      const hasRecipe = recipes.some((r) => r.menu_item_id === m.id) || (stock[m.id]?.track_stock ?? false);
                       const st = stock[m.id];
                       const tracked = st?.track_stock ?? false;
                       return (
@@ -196,7 +207,7 @@ export default function MenuPage() {
                               </div>
                               <div className="truncate text-sm text-stone-500">
                                 {m.variant_name ? `${m.name} · ` : ""}
-                                {m.category || "Tanpa kategori"}
+                                {m.category || "Tanpa kategori"}{(m.pack_qty ?? 1) !== 1 ? `, isi ${m.pack_qty}` : ""}
                               </div>
                               {tracked && (
                                 <div className={`text-xs font-medium ${st.is_low ? "text-red-700" : "text-stone-400"}`}>
@@ -252,6 +263,7 @@ function MenuEditor({
   const [stockUnit, setStockUnit] = useState(menu.stock_unit);
   const [productGroup, setProductGroup] = useState(groups.find((g) => g.id === menu.product_group_id)?.name ?? "");
   const [variantName, setVariantName] = useState(menu.variant_name ?? "");
+  const [pack, setPack] = useState(String(menu.pack_qty ?? 1));
 
   async function savePhoto(url: string | null) {
     const { error } = await supabase.from("menu_items").update({ photo_url: url }).eq("id", menu.id);
@@ -280,10 +292,16 @@ function MenuEditor({
         stock_unit: stockUnit.trim() || "pcs",
         product_group_id: groupId,
         variant_name: variantName.trim() || null,
+        ...(Number(pack) > 0 && Number(pack) !== (menu.pack_qty ?? 1) ? { pack_qty: Number(pack) } : {}),
       })
       .eq("id", menu.id);
     if (error) {
-      const msg = error.code === "23505" ? "Nama menu sudah dipakai produk lain." : error.message;
+      const msg =
+        error.code === "23505"
+          ? "Nama menu sudah dipakai produk lain."
+          : /pack_qty/.test(error.message)
+            ? "Kolom isi belum aktif. Jalankan supabase/15-isi-per-penjualan.sql di Supabase (SQL Editor), lalu coba lagi."
+            : error.message;
       onChanged({ type: "err", text: msg });
       return;
     }
@@ -360,6 +378,14 @@ function MenuEditor({
           <Label>Nama varian</Label>
           <input className={inputCls} value={variantName} onChange={(e) => setVariantName(e.target.value)} placeholder="Original, Cokelat…" />
         </div>
+      </div>
+      <div>
+        <Label>Isi per penjualan (pcs stok)</Label>
+        <input type="number" inputMode="decimal" className={inputCls} value={pack} onChange={(e) => setPack(e.target.value)} />
+        <p className="mt-1 text-xs text-stone-500">
+          Jumlah pcs stok produk yang keluar tiap 1 kali terjual (isi 5 diisi 5, hampers isi 15 diisi 15).
+          Biarkan 1 kalau satu penjualan = 1 pcs.
+        </p>
       </div>
       {menu.track_stock && (
         <div className="grid grid-cols-2 gap-3">

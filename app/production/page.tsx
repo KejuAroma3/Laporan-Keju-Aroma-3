@@ -1,16 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmt, rupiah } from "@/lib/format";
 import { loadRole } from "@/lib/authClient";
-import { groupByProduct } from "@/lib/group";
+import { buildProductionEntries, moveKey, visibleEntries, type ProductionEntry } from "@/lib/production";
 import type { ProductGroup, ProductStockRow } from "@/lib/types";
-import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, Tabs, btnCls, inputCls, type Msg } from "@/components/ui";
-import { Thumb } from "@/components/BestSellerList";
+import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, Tabs, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 
-type Tab = "stok" | "produksi" | "sesuaikan";
+type Tab = "stok" | "produksi" | "sesuaikan" | "atur";
 type Done = (m: Msg) => void;
+
+const NEED_SQL14 =
+  "Fitur ini belum aktif. Jalankan supabase/14-urutan-produksi.sql di Supabase (SQL Editor), lalu muat ulang halaman ini.";
+const isMissingSql14 = (e: { code?: string; message: string }) =>
+  e.code === "42703" || e.code === "PGRST202" || e.code === "PGRST204" ||
+  /does not exist|could not find|schema cache/i.test(e.message);
 
 export default function ProductionPage() {
   const [tab, setTab] = useState<Tab>("stok");
@@ -50,7 +55,9 @@ export default function ProductionPage() {
     if (m?.type === "ok") load();
   };
 
-  const tracked = rows.filter((r) => r.track_stock);
+  const entries = useMemo(() => buildProductionEntries(rows, groups), [rows, groups]);
+  const shown = useMemo(() => visibleEntries(entries), [entries]);
+  const sql14Ready = rows.length === 0 || rows[0].production_order !== undefined;
 
   return (
     <div>
@@ -64,34 +71,46 @@ export default function ProductionPage() {
           { id: "stok", label: "Stok produk" },
           { id: "produksi", label: "Produksi" },
           { id: "sesuaikan", label: "Sesuaikan" },
+          ...(isOwner ? [{ id: "atur" as const, label: "Atur list" }] : []),
         ]}
       />
       <Notice msg={msg} />
-      {tab === "stok" && <StockList rows={rows} groups={groups} showValue={isOwner} />}
-      {tab === "produksi" && <ProduceForm rows={rows} onDone={done} />}
-      {tab === "sesuaikan" && <AdjustForm rows={tracked} onDone={done} />}
+      {tab === "stok" && <StockList entries={shown} totalMenus={rows.length} hiddenCount={entries.length - shown.length} showValue={isOwner} />}
+      {tab === "produksi" && <ProduceForm rows={rows} entries={shown} onDone={done} />}
+      {tab === "sesuaikan" && <AdjustForm entries={shown} onDone={done} />}
+      {tab === "atur" && isOwner && <ArrangeList entries={entries} ready={sql14Ready} onDone={done} />}
     </div>
   );
 }
 
 function StockList({
-  rows,
-  groups,
+  entries,
+  totalMenus,
+  hiddenCount,
   showValue,
 }: {
-  rows: ProductStockRow[];
-  groups: ProductGroup[];
+  entries: ProductionEntry[];
+  totalMenus: number;
+  hiddenCount: number;
   showValue: boolean;
 }) {
   const [q, setQ] = useState("");
-  if (rows.length === 0) return <Empty>Belum ada menu. Tambahkan dulu di Lainnya › Menu.</Empty>;
+  if (totalMenus === 0) return <Empty>Belum ada menu. Tambahkan dulu di Lainnya › Menu.</Empty>;
 
   const term = q.trim().toLowerCase();
   const filtered = term
-    ? rows.filter((r) => r.name.toLowerCase().includes(term) || (r.variant_name ?? "").toLowerCase().includes(term))
-    : rows;
-  const value = rows.reduce((s, r) => s + Math.max(0, r.stock_on_hand) * r.avg_product_cost, 0);
-  const buckets = groupByProduct(filtered, groups, "");
+    ? entries.filter(
+        (e) =>
+          e.label.toLowerCase().includes(term) ||
+          e.variants.some((v) => (v.variant_name ?? "").toLowerCase().includes(term)) ||
+          e.rows.some((r) => r.name.toLowerCase().includes(term) || (r.variant_name ?? "").toLowerCase().includes(term))
+      )
+    : entries;
+  // Nilai stok dihitung dari menu yang memegang stok (varian yang disatukan tidak dihitung dobel).
+  const value = entries.reduce(
+    (s, e) => s + e.rows.reduce((t, r) => t + Math.max(0, r.stock_on_hand) * r.avg_product_cost, 0),
+    0
+  );
 
   return (
     <div>
@@ -103,25 +122,35 @@ function StockList({
       )}
       <SearchInput value={q} onChange={setQ} placeholder="Cari menu…" />
       {filtered.length === 0 ? (
-        <Empty>Tidak ada menu yang cocok dengan pencarian.</Empty>
+        <Empty>{entries.length === 0 ? "Semua menu disembunyikan dari list produksi. Atur di tab Atur list." : "Tidak ada menu yang cocok dengan pencarian."}</Empty>
       ) : (
         <ScrollList className="space-y-2">
-          {buckets.map((bucket) => {
-            if (bucket.groupId === null) {
-              return bucket.items.map((r) => (
-                <Card key={r.id} className={r.is_low ? "border-red-300" : ""}>
+          {filtered.map((e) => {
+            if (e.kind === "single") {
+              const r = e.rows[0];
+              return (
+                <Card key={e.key} className={r.is_low ? "border-red-300" : ""}>
                   <StockRowContent r={r} label={r.name} showValue={showValue} />
                 </Card>
-              ));
+              );
             }
-            const trackedItems = bucket.items.filter((r) => r.track_stock);
+            if (e.kind === "shared") {
+              const r = e.rows[0];
+              const names = e.variants.map((v) => v.variant_name || v.name).join(", ");
+              return (
+                <Card key={e.key} className={r.is_low ? "border-red-300" : ""}>
+                  <StockRowContent r={r} label={e.label} showValue={showValue} note={`Semua varian: ${names}`} />
+                </Card>
+              );
+            }
+            const trackedItems = e.rows.filter((r) => r.track_stock);
             const totalStock = trackedItems.reduce((s, r) => s + r.stock_on_hand, 0);
             const unit = trackedItems[0]?.stock_unit ?? "";
-            const anyLow = bucket.items.some((r) => r.is_low);
+            const anyLow = e.rows.some((r) => r.is_low);
             return (
-              <Card key={bucket.key} className={anyLow ? "border-red-300" : ""}>
+              <Card key={e.key} className={anyLow ? "border-red-300" : ""}>
                 <div className="mb-2 flex items-baseline justify-between gap-3">
-                  <h3 className="truncate font-semibold">{bucket.label}</h3>
+                  <h3 className="truncate font-semibold">{e.label}</h3>
                   {trackedItems.length > 0 && (
                     <span className="shrink-0 text-sm tabular-nums text-stone-500">
                       Total {fmt(totalStock)} {unit}
@@ -129,7 +158,7 @@ function StockList({
                   )}
                 </div>
                 <div className="divide-y divide-stone-100">
-                  {bucket.items.map((r) => (
+                  {e.rows.map((r) => (
                     <div key={r.id} className="py-2 first:pt-0 last:pb-0">
                       <StockRowContent r={r} label={r.variant_name || r.name} showValue={showValue} />
                     </div>
@@ -140,16 +169,20 @@ function StockList({
           })}
         </ScrollList>
       )}
+      {hiddenCount > 0 && (
+        <p className="mt-3 text-xs text-stone-500">{hiddenCount} menu disembunyikan dari list ini (tab Atur list).</p>
+      )}
     </div>
   );
 }
 
-function StockRowContent({ r, label, showValue }: { r: ProductStockRow; label: string; showValue: boolean }) {
+function StockRowContent({ r, label, showValue, note }: { r: ProductStockRow; label: string; showValue: boolean; note?: string }) {
   return (
     <>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate font-semibold">{label}</div>
+          {note && <div className="truncate text-xs text-stone-400">{note}</div>}
           {r.track_stock ? (
             <div className="text-sm text-stone-500">
               {showValue && `HPP ${rupiah(r.avg_product_cost)} per ${r.stock_unit}`}
@@ -172,23 +205,34 @@ function StockRowContent({ r, label, showValue }: { r: ProductStockRow; label: s
   );
 }
 
-function MenuSelect({ rows, value, onChange }: { rows: ProductStockRow[]; value: string; onChange: (v: string) => void }) {
+// Pilihan menu berdasarkan list produksi: produk dasar yang disatukan hanya muncul sekali.
+function MenuSelect({ entries, value, onChange }: { entries: ProductionEntry[]; value: string; onChange: (v: string) => void }) {
   return (
     <select className={inputCls} value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">Pilih menu…</option>
-      {rows.map((r) => (
-        <option key={r.id} value={r.id}>{r.name}</option>
-      ))}
+      {entries.map((e) =>
+        e.kind === "group" ? (
+          <optgroup key={e.key} label={e.label}>
+            {e.rows.map((r) => (
+              <option key={r.id} value={r.id}>{r.variant_name || r.name}</option>
+            ))}
+          </optgroup>
+        ) : (
+          <option key={e.key} value={e.rows[0].id}>{e.label}</option>
+        )
+      )}
     </select>
   );
 }
 
-function ProduceForm({ rows, onDone }: { rows: ProductStockRow[]; onDone: Done }) {
+function ProduceForm({ rows, entries, onDone }: { rows: ProductStockRow[]; entries: ProductionEntry[]; onDone: Done }) {
   const [menu, setMenu] = useState("");
   const [qty, setQty] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const sel = rows.find((r) => r.id === menu);
+  const selEntry = entries.find((e) => e.rows.some((r) => r.id === menu));
+  const selLabel = selEntry && selEntry.kind !== "group" ? selEntry.label : sel?.name ?? "";
 
   async function save() {
     if (!menu || !(Number(qty) > 0)) {
@@ -213,18 +257,23 @@ function ProduceForm({ rows, onDone }: { rows: ProductStockRow[]; onDone: Done }
       return;
     }
     setQty(""); setNote("");
-    onDone({ type: "ok", text: `Produksi tercatat. Stok "${sel?.name ?? ""}" bertambah, bahan sesuai resep otomatis terpotong.` });
+    onDone({ type: "ok", text: `Produksi tercatat. Stok "${selLabel}" bertambah, bahan sesuai resep otomatis terpotong.` });
   }
 
   return (
     <Card className="space-y-4">
       <p className="text-sm text-stone-500">
-        Bahan dipotong otomatis sesuai resep dikali jumlah produksi. Isi resep menu ini dulu di Menu dan
-        resep kalau belum ada.
+        Bahan dipotong otomatis sesuai resep dikali jumlah produksi. Isi resep menu ini dulu di
+        Lainnya › Resep kalau belum ada.
       </p>
       <div>
         <Label>Menu</Label>
-        <MenuSelect rows={rows} value={menu} onChange={setMenu} />
+        <MenuSelect entries={entries} value={menu} onChange={setMenu} />
+        {selEntry?.kind === "shared" && (
+          <p className="mt-1 text-xs text-stone-500">
+            Semua varian memakai satu stok. Bahan dipotong sesuai resep &quot;{sel?.variant_name || sel?.name}&quot;.
+          </p>
+        )}
       </div>
       <div>
         <Label>Jumlah diproduksi ({sel ? sel.stock_unit : "satuan"})</Label>
@@ -243,7 +292,7 @@ function ProduceForm({ rows, onDone }: { rows: ProductStockRow[]; onDone: Done }
 
 const REASONS = ["Rusak atau kedaluwarsa", "Remuk saat kemas/angkut", "Hilang atau tidak diketahui"];
 
-function AdjustForm({ rows, onDone }: { rows: ProductStockRow[]; onDone: Done }) {
+function AdjustForm({ entries: allEntries, onDone }: { entries: ProductionEntry[]; onDone: Done }) {
   const [menu, setMenu] = useState("");
   const [mode, setMode] = useState<"waste" | "opname">("waste");
   const [qty, setQty] = useState("");
@@ -251,6 +300,11 @@ function AdjustForm({ rows, onDone }: { rows: ProductStockRow[]; onDone: Done })
   const [reason, setReason] = useState(REASONS[0]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  // Hanya menu yang pernah diproduksi (atau pemegang stok gabungan yang sudah punya stok)
+  const entries = allEntries
+    .map((e) => ({ ...e, rows: e.rows.filter((r) => r.track_stock) }))
+    .filter((e) => e.rows.length > 0);
+  const rows = entries.flatMap((e) => e.rows);
   const sel = rows.find((r) => r.id === menu);
   const diff = sel && physical !== "" ? Number(physical) - sel.stock_on_hand : null;
 
@@ -315,7 +369,7 @@ function AdjustForm({ rows, onDone }: { rows: ProductStockRow[]; onDone: Done })
       <Card className="space-y-4">
         <div>
           <Label>Menu</Label>
-          <MenuSelect rows={rows} value={menu} onChange={setMenu} />
+          <MenuSelect entries={entries} value={menu} onChange={setMenu} />
           {sel && <p className="mt-1 text-sm text-stone-500">Stok sistem sekarang: {fmt(sel.stock_on_hand)} {sel.stock_unit}</p>}
         </div>
 
@@ -356,6 +410,158 @@ function AdjustForm({ rows, onDone }: { rows: ProductStockRow[]; onDone: Done })
           </>
         )}
       </Card>
+    </div>
+  );
+}
+
+// ---------- Atur list produksi (khusus pemilik) ----------
+function ArrangeList({ entries, ready, onDone }: { entries: ProductionEntry[]; ready: boolean; onDone: Done }) {
+  const [busy, setBusy] = useState(false);
+  const [holderPick, setHolderPick] = useState<Record<string, string>>({});
+
+  if (entries.length === 0) return <Empty>Belum ada menu. Tambahkan dulu di Lainnya › Menu.</Empty>;
+
+  const fail = (e: { code?: string; message: string }) =>
+    onDone({ type: "err", text: isMissingSql14(e) ? NEED_SQL14 : e.message });
+
+  // Menyimpan urutan baru: hanya baris yang nomor urutnya berubah yang ditulis.
+  async function saveOrder(keys: string[]) {
+    setBusy(true);
+    const writes = keys.flatMap((k, i) => {
+      const e = entries.find((x) => x.key === k)!;
+      if (e.order === i + 1) return [];
+      const table = e.groupId ? "product_groups" : "menu_items";
+      const id = e.groupId ?? e.rows[0].id;
+      return [supabase.from(table).update({ production_order: i + 1 }).eq("id", id)];
+    });
+    const results = await Promise.all(writes);
+    setBusy(false);
+    const err = results.find((r) => r.error)?.error;
+    if (err) return fail(err);
+    onDone({ type: "ok", text: "Urutan list produksi disimpan." });
+  }
+
+  async function setHidden(e: ProductionEntry, hidden: boolean) {
+    setBusy(true);
+    const table = e.groupId ? "product_groups" : "menu_items";
+    const id = e.groupId ?? e.rows[0].id;
+    const { error } = await supabase.from(table).update({ hide_in_production: hidden }).eq("id", id);
+    setBusy(false);
+    if (error) return fail(error);
+    onDone({ type: "ok", text: hidden ? `"${e.label}" disembunyikan dari list produksi.` : `"${e.label}" tampil di list produksi.` });
+  }
+
+  async function merge(e: ProductionEntry) {
+    const holder = holderPick[e.key] ?? e.variants[0]?.id;
+    const holderRow = e.variants.find((v) => v.id === holder);
+    if (!holderRow) return onDone({ type: "err", text: "Pilih varian yang resepnya dipakai untuk produksi." });
+    const movers = e.variants.filter((v) => v.id !== holder && v.track_stock && v.stock_on_hand !== 0);
+    const warn = movers.length
+      ? `\n\nStok varian lain (${movers.map((v) => `${v.variant_name || v.name}: ${fmt(v.stock_on_hand)}`).join(", ")}) akan dipindahkan ke stok gabungan.`
+      : "";
+    if (
+      !confirm(
+        `Satukan semua varian "${e.label}" jadi satu stok?\n\nProduksi dicatat sekali untuk "${e.label}" memakai resep "${holderRow.variant_name || holderRow.name}", dan penjualan varian apa pun mengurangi stok yang sama.${warn}`
+      )
+    )
+      return;
+    setBusy(true);
+    const { error } = await supabase.rpc("merge_group_stock", { p_group: e.groupId, p_holder: holder });
+    setBusy(false);
+    if (error) return fail(error);
+    onDone({ type: "ok", text: `Varian "${e.label}" disatukan jadi satu stok.` });
+  }
+
+  async function split(e: ProductionEntry) {
+    if (
+      !confirm(
+        `Pisahkan lagi varian "${e.label}"?\n\nStok yang ada tetap tersimpan di "${e.rows[0].variant_name || e.rows[0].name}". Varian lain mulai dari nol dan dianggap belum diproduksi.`
+      )
+    )
+      return;
+    setBusy(true);
+    const { error } = await supabase.from("product_groups").update({ shared_stock: false }).eq("id", e.groupId!);
+    setBusy(false);
+    if (error) return fail(error);
+    onDone({ type: "ok", text: `Varian "${e.label}" dipisah lagi.` });
+  }
+
+  const keys = entries.map((e) => e.key);
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-stone-500">
+        Atur urutan list produksi dengan tombol panah (urutan ini dipakai di tab Stok produk dan pilihan menu
+        di tab Produksi). Menu yang tidak diproduksi dalam batch bisa disembunyikan. Produk dasar yang bahannya
+        sama dan hanya beda varian atau topping bisa disatukan jadi satu baris dan satu stok.
+      </p>
+      {!ready && <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{NEED_SQL14}</p>}
+      <ul className="space-y-2">
+        {entries.map((e, i) => (
+          <li key={e.key}>
+            <Card className={e.hidden ? "opacity-60" : ""}>
+              <div className="flex items-center gap-2">
+                <div className="flex shrink-0 flex-col">
+                  <button
+                    className="h-8 w-9 rounded-md border border-stone-200 text-sm disabled:opacity-30"
+                    onClick={() => saveOrder(moveKey(keys, e.key, -1))}
+                    disabled={busy || i === 0}
+                    aria-label={`Naikkan ${e.label}`}
+                  >▲</button>
+                  <button
+                    className="mt-1 h-8 w-9 rounded-md border border-stone-200 text-sm disabled:opacity-30"
+                    onClick={() => saveOrder(moveKey(keys, e.key, 1))}
+                    disabled={busy || i === entries.length - 1}
+                    aria-label={`Turunkan ${e.label}`}
+                  >▼</button>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-semibold">{i + 1}. {e.label}</div>
+                  <div className="truncate text-xs text-stone-500">
+                    {e.kind === "single" && "Menu tunggal"}
+                    {e.kind === "group" && `${e.variants.length} varian, stok masing-masing`}
+                    {e.kind === "shared" && `${e.variants.length} varian, satu stok (resep: ${e.rows[0].variant_name || e.rows[0].name})`}
+                  </div>
+                </div>
+                <label className="flex shrink-0 items-center gap-1.5 text-sm">
+                  <input
+                    type="checkbox"
+                    className="h-5 w-5"
+                    checked={!e.hidden}
+                    disabled={busy}
+                    onChange={(ev) => setHidden(e, !ev.target.checked)}
+                  />
+                  Tampil
+                </label>
+              </div>
+
+              {e.kind === "group" && e.variants.length > 1 && (
+                <div className="mt-3 space-y-2 rounded-lg bg-stone-50 p-3">
+                  <div className="text-sm font-medium">Bahan dasarnya sama, hanya beda varian/topping?</div>
+                  <Label>Resep varian yang dipakai untuk produksi</Label>
+                  <select
+                    className={inputCls}
+                    value={holderPick[e.key] ?? e.variants[0].id}
+                    onChange={(ev) => setHolderPick((p) => ({ ...p, [e.key]: ev.target.value }))}
+                  >
+                    {e.variants.map((v) => (
+                      <option key={v.id} value={v.id}>{v.variant_name || v.name}</option>
+                    ))}
+                  </select>
+                  <button className={`${btnCls} w-full`} onClick={() => merge(e)} disabled={busy}>
+                    Satukan varian jadi satu stok
+                  </button>
+                </div>
+              )}
+              {e.kind === "shared" && (
+                <button className={`${btnGhostCls} mt-3 w-full`} onClick={() => split(e)} disabled={busy}>
+                  Pisahkan varian lagi
+                </button>
+              )}
+            </Card>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

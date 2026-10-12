@@ -16,6 +16,7 @@ type SaleRow = {
   sold_at: string;
   channel: Channel;
   discount: number;
+  sale_discounts?: { label: string; amount: number }[];
   platform_fee: number;
   sale_items: SaleItemRow[];
 };
@@ -58,7 +59,18 @@ function ReceiptContent() {
         setLoading(false);
         if (error) setMsg({ type: "err", text: error.message });
         else if (!data) setMsg({ type: "err", text: "Penjualan tidak ditemukan. Mungkin sudah dihapus." });
-        else setSale(data as unknown as SaleRow);
+        else {
+          const base = data as unknown as SaleRow;
+          setSale(base);
+          // Rincian diskon dibaca terpisah: boleh gagal jika supabase/16-rincian-diskon.sql belum dijalankan.
+          supabase
+            .from("sale_discounts")
+            .select("label, amount")
+            .eq("sale_id", saleId)
+            .then(({ data: d, error: e }) => {
+              if (!e && d) setSale({ ...base, sale_discounts: d as { label: string; amount: number }[] });
+            });
+        }
       });
   }, [saleId]);
 
@@ -71,6 +83,7 @@ function ReceiptContent() {
       channel_label: CHANNEL_LABEL[sale.channel],
       items: sale.sale_items.map((i) => ({ name: i.menu_items?.name ?? "Menu dihapus", qty: i.qty, unit_price: i.unit_price })),
       discount: sale.discount,
+      discount_lines: sale.sale_discounts,
       platform_fee: sale.platform_fee,
       footer: settings.receipt_footer,
     };

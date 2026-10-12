@@ -10,6 +10,7 @@ export type ReceiptData = {
   channel_label: string;
   items: ReceiptItem[];
   discount: number;
+  discount_lines?: { label: string; amount: number }[]; // rincian diskon; kalau kosong dipakai satu baris "Diskon"
   platform_fee: number;
   footer: string;
 };
@@ -85,7 +86,11 @@ export function buildReceiptLines(data: ReceiptData, widthMm: number): string[] 
 
   lines.push(sep);
   lines.push(padLine("Subtotal", rupiahPlain(subtotal), w));
-  if (data.discount > 0) lines.push(padLine("Diskon", `-${rupiahPlain(data.discount)}`, w));
+  if (data.discount_lines && data.discount_lines.length > 0) {
+    for (const d of data.discount_lines) lines.push(padLine(d.label, `-${rupiahPlain(d.amount)}`, w));
+  } else if (data.discount > 0) {
+    lines.push(padLine("Diskon", `-${rupiahPlain(data.discount)}`, w));
+  }
   if (data.platform_fee > 0) lines.push(padLine("Komisi platform", `-${rupiahPlain(data.platform_fee)}`, w));
   lines.push(dSep);
   const total = subtotal - data.discount - data.platform_fee;

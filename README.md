@@ -25,7 +25,7 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
    `supabase/6-pengaturan-aplikasi.sql` (butuh tabel dari langkah karyawan), lalu
    `supabase/7-tanggal-belanja.sql` (mengganti fungsi record_purchase; jangan jalankan ulang 1-skema.sql sesudahnya),
    `supabase/8-koreksi-penjualan.sql`, `supabase/9-stok-produk.sql`, `supabase/10-satuan-produk-dan-akses.sql`, `supabase/11-kategori-bahan.sql`, `supabase/12-pengaturan-struk.sql`, lalu
-   `supabase/13-varian-produk.sql`.
+   `supabase/13-varian-produk.sql`, lalu `supabase/14-urutan-produksi.sql`, lalu `supabase/15-isi-per-penjualan.sql`, lalu `supabase/16-rincian-diskon.sql`.
 2. Sudah pernah menjalankan skema sebelumnya: cukup jalankan file yang belum pernah dijalankan,
    urut dari nomor terkecil. Semua file aman dijalankan berulang.
 3. Authentication > Users: buat akun untuk Anda dan staf.
@@ -82,6 +82,45 @@ dan pakai "Salin resep dari varian lain", lalu ganti bahan yang beda (isi/toppin
 Menu yang berdiri sendiri cukup dikosongkan kolom produk dasarnya. Impor massal (CSV) belum
 mendukung kolom produk dasar/varian; atur lewat Menu dan Resep setelah impor.
 Butuh `supabase/13-varian-produk.sql`.
+
+## Atur list produksi (urutan dan satukan varian)
+Di Produksi ada tab "Atur list" (khusus pemilik). Butuh `supabase/14-urutan-produksi.sql`.
+- **Urutan**: tombol panah naik/turun. Urutan ini dipakai di tab Stok produk dan pilihan menu
+  di tab Produksi, supaya sesuai urutan kerja produksi.
+- **Tampil**: hilangkan centang untuk menyembunyikan menu atau produk dasar yang tidak diproduksi
+  dalam batch (data tidak dihapus).
+- **Satukan varian**: untuk produk dasar yang bahannya sama dan hanya beda varian/topping. Pilih
+  satu varian yang resepnya dipakai untuk produksi, lalu tekan "Satukan varian jadi satu stok".
+  Setelah itu di Produksi hanya muncul satu baris untuk produk dasar itu (satu stok, satu catatan
+  produksi), dan penjualan varian apa pun di Rekap penjualan mengurangi stok yang sama. Stok varian
+  lain yang sudah ada dipindahkan ke stok gabungan. Resep tiap varian tetap ada untuk HPP penjualan
+  yang dihitung dari resep. "Pisahkan varian lagi" mengembalikan seperti semula; stok tetap di varian
+  pemegang stok, varian lain mulai dari nol.
+- Catatan: HPP penjualan varian dari stok gabungan memakai HPP stok gabungan (resep varian pemegang stok).
+
+## Isi per penjualan (isi 5, isi 15, hampers)
+Untuk menu yang bahan dasar dan stoknya sama tetapi beda isi, misalnya "Keju Aroma Original isi 5"
+dan "Hampers Keju Aroma Original isi 15". Butuh `supabase/15-isi-per-penjualan.sql`.
+- Di Menu ada kolom **Isi per penjualan (pcs stok)**: isi 5 untuk menu isi 5, 15 untuk hampers isi 15.
+  Bawaannya 1.
+- Satu penjualan mengurangi stok sebanyak jumlah terjual x isi. Contoh: 2 kotak isi 5 + 1 hampers isi
+  15 = 25 pcs keluar dari stok gabungan. Harga jual tetap harga per kotak/hampers.
+- HPP penjualan = HPP per pcs stok x isi. Peringatan "Melebihi stok" di Rekap penjualan juga memakai
+  total pcs yang dibutuhkan semua varian yang berbagi stok.
+- Pakai bersama "Satukan varian" (Produksi > Atur list): produksi dicatat dalam pcs sekali, semua isi
+  mengurangi stok yang sama. Menu isi 15 tidak perlu resep sendiri.
+- Penjualan lama tidak berubah (isi dihitung 1).
+
+## Diskon bernama di Rekap penjualan
+Satu penjualan bisa punya beberapa diskon, misalnya di GoFood: "Diskon total belanja" dan "Diskon
+ongkir". Butuh `supabase/16-rincian-diskon.sql`.
+- Di form Rekap penjualan, ketuk tombol nama diskon (+ Diskon total belanja, + Diskon ongkir, dst)
+  untuk menambah baris, isi nominalnya. Tombol ✕ di tiap baris menghapus diskon itu. "+ Diskon lain"
+  untuk nama bebas.
+- "Atur jenis diskon" menambah atau menghapus nama diskon yang sering dipakai (tombol-tombol itu).
+- Total semua diskon tetap disimpan sebagai diskon penjualan, jadi laporan laba rugi dan kas tidak
+  berubah. Rincian muncul di riwayat penjualan, saat Ubah, dan di struk.
+- Penjualan lama yang hanya punya satu angka diskon tampil sebagai satu baris "Diskon".
 
 ## Cetak struk
 

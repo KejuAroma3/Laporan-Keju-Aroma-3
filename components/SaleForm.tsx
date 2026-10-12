@@ -5,9 +5,11 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { CHANNEL_LABEL, rangeIso, rupiah, todayJkt } from "@/lib/format";
 import { groupByProduct } from "@/lib/group";
+import { resolveSharedStock, stockHolderId, stockNeeded } from "@/lib/production";
 import type { Channel, MenuItem, ProductGroup, ProductStockRow } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
+import { cleanDiscounts, discountLinesFor, sumDiscounts, type DiscountInput, type DiscountLine } from "@/lib/discounts";
 
 type Line = { qty: number; price: number };
 type HistoryItem = { menu_item_id: string; qty: number; unit_price: number; menu_items: { name: string } | null };
@@ -35,7 +37,12 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const [cart, setCart] = useState<Record<string, Line>>({});
   const [channel, setChannel] = useState<Channel>("offline");
   const [date, setDate] = useState(todayJkt());
-  const [discount, setDiscount] = useState("");
+  const [discRows, setDiscRows] = useState<DiscountInput[]>([]);
+  const [discKey, setDiscKey] = useState(1);
+  const [discTypes, setDiscTypes] = useState<{ id: string; name: string }[]>([]);
+  const [discDetails, setDiscDetails] = useState<Record<string, DiscountLine[]>>({});
+  const [manageTypes, setManageTypes] = useState(false);
+  const [newType, setNewType] = useState("");
   const [fee, setFee] = useState("");
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -52,10 +59,11 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     ]);
     if (m.error) setMsg({ type: "err", text: m.error.message });
     else setMenus((m.data ?? []) as MenuItem[]);
-    const stockMap: Record<string, ProductStockRow> = {};
-    for (const row of (s.data ?? []) as ProductStockRow[]) stockMap[row.id] = row;
-    setStock(stockMap);
+    setStock(resolveSharedStock((s.data ?? []) as ProductStockRow[], (g.data ?? []) as ProductGroup[]));
     setProductGroups((g.data ?? []) as ProductGroup[]);
+    // boleh gagal jika supabase/16-rincian-diskon.sql belum dijalankan
+    const t = await supabase.from("discount_types").select("id, name").order("created_at");
+    if (!t.error) setDiscTypes((t.data ?? []) as { id: string; name: string }[]);
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
@@ -71,7 +79,22 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
       .lte("sold_at", end)
       .order("sold_at", { ascending: false });
     if (error) setMsg({ type: "err", text: error.message });
-    else setHistory((data ?? []) as unknown as HistorySale[]);
+    else {
+      const list = (data ?? []) as unknown as HistorySale[];
+      setHistory(list);
+      const ids = list.map((x) => x.id);
+      const details: Record<string, DiscountLine[]> = {};
+      if (ids.length > 0) {
+        // boleh gagal jika supabase/16-rincian-diskon.sql belum dijalankan
+        const d = await supabase.from("sale_discounts").select("sale_id, label, amount").in("sale_id", ids);
+        if (!d.error) {
+          for (const r of (d.data ?? []) as { sale_id: string; label: string; amount: number }[]) {
+            details[r.sale_id] = [...(details[r.sale_id] ?? []), { label: r.label, amount: Number(r.amount) }];
+          }
+        }
+      }
+      setDiscDetails(details);
+    }
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadHistory(); }, [online, date, channel]);
@@ -95,10 +118,23 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const lines = Object.entries(cart);
   const total = lines.reduce((s, [, l]) => s + l.qty * l.price, 0);
   const portions = lines.reduce((s, [, l]) => s + l.qty, 0);
+  const need = stockNeeded(
+    lines.flatMap(([id, l]) => {
+      const menu = menus.find((m) => m.id === id);
+      return menu ? [{ menu, qty: l.qty }] : [];
+    }),
+    productGroups
+  );
   const overStockItems = lines
-    .filter(([id, l]) => stock[id]?.track_stock && l.qty > (stock[id]?.stock_on_hand ?? 0))
+    .filter(([id]) => {
+      const menu = menus.find((m) => m.id === id);
+      if (!menu || !stock[id]?.track_stock) return false;
+      return (need.get(stockHolderId(menu, productGroups)) ?? 0) > (stock[id]?.stock_on_hand ?? 0);
+    })
     .map(([id]) => menus.find((m) => m.id === id)?.name ?? "menu");
-  const net = total - (Number(discount) || 0) - (Number(fee) || 0);
+  const discLines = cleanDiscounts(discRows);
+  const discountTotal = sumDiscounts(discLines);
+  const net = total - discountTotal - (Number(fee) || 0);
 
   const groups = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -113,7 +149,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
 
   function resetForm() {
     setCart({});
-    setDiscount("");
+    setDiscRows([]);
     setFee("");
     setEditingId(null);
   }
@@ -122,7 +158,10 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     const next: Record<string, Line> = {};
     for (const i of s.sale_items) next[i.menu_item_id] = { qty: i.qty, price: i.unit_price };
     setCart(next);
-    setDiscount(s.discount ? String(s.discount) : "");
+    setDiscRows(
+      discountLinesFor(s.discount, discDetails[s.id]).map((d, i) => ({ key: discKey + i, label: d.label, amount: String(d.amount) }))
+    );
+    setDiscKey((k) => k + 10);
     setFee(s.platform_fee ? String(s.platform_fee) : "");
     setEditingId(s.id);
     setMsg(null);
@@ -154,6 +193,31 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
       : error.message;
   }
 
+  async function addType() {
+    const name = newType.trim();
+    if (!name) return;
+    const { error } = await supabase.from("discount_types").insert({ name });
+    if (error) {
+      setMsg({
+        type: "err",
+        text: error.code === "23505"
+          ? "Nama diskon itu sudah ada."
+          : /discount_types|does not exist|schema cache/i.test(error.message)
+            ? "Fitur diskon bernama belum aktif. Jalankan supabase/16-rincian-diskon.sql di Supabase (SQL Editor)."
+            : error.message,
+      });
+      return;
+    }
+    setNewType("");
+    load();
+  }
+
+  async function removeType(id: string) {
+    const { error } = await supabase.from("discount_types").delete().eq("id", id);
+    if (error) setMsg({ type: "err", text: error.message });
+    else load();
+  }
+
   async function submit() {
     if (lines.length === 0) {
       setMsg({ type: "err", text: "Pilih minimal 1 menu." });
@@ -170,14 +234,14 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
       ? await supabase.rpc("update_sale", {
           p_sale: editingId,
           p_channel: channel,
-          p_discount: Number(discount) || 0,
+          p_discount: discountTotal,
           p_fee: Number(fee) || 0,
           p_sold_at: soldAt,
           p_items: items,
         })
       : await supabase.rpc("record_sale", {
           p_channel: channel,
-          p_discount: Number(discount) || 0,
+          p_discount: discountTotal,
           p_fee: Number(fee) || 0,
           p_sold_at: soldAt,
           p_items: items,
@@ -188,8 +252,18 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
       return;
     }
     const wasEditing = Boolean(editingId);
+    // Rincian diskon disimpan setelah penjualan; total diskon sudah tersimpan di penjualannya.
+    let detailWarn = "";
+    if (typeof savedId === "string" && discLines.length > 0) {
+      const ins = await supabase.from("sale_discounts").insert(discLines.map((d) => ({ sale_id: savedId, label: d.label, amount: d.amount })));
+      if (ins.error) {
+        detailWarn = /sale_discounts|does not exist|schema cache/i.test(ins.error.message)
+          ? " Rincian diskon belum bisa disimpan: jalankan supabase/16-rincian-diskon.sql di Supabase (total diskon tetap tercatat)."
+          : ` Rincian diskon gagal disimpan (${ins.error.message}), total diskon tetap tercatat.`;
+      }
+    }
     resetForm();
-    setMsg({ type: "ok", text: `${wasEditing ? "Perubahan disimpan" : "Tersimpan"}. Pendapatan bersih ${rupiah(net)}.` });
+    setMsg({ type: detailWarn ? "err" : "ok", text: `${wasEditing ? "Perubahan disimpan" : "Tersimpan"}. Pendapatan bersih ${rupiah(net)}.${detailWarn}` });
     setLastSavedId(typeof savedId === "string" ? savedId : null);
     load();
     loadHistory();
@@ -327,32 +401,96 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
             Melebihi stok produk: {overStockItems.join(", ")}. Tetap bisa disimpan, tapi produksi lagi dulu kalau bisa.
           </p>
         )}
-        <div className={`grid gap-3 ${online && channel !== "offline" ? "grid-cols-2" : "grid-cols-1"}`}>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label>Diskon{discLines.length > 0 ? `: ${rupiah(discountTotal)}` : ""}</Label>
+            <button type="button" className="text-sm font-medium text-brand-800 underline" onClick={() => setManageTypes((v) => !v)}>
+              {manageTypes ? "Selesai" : "Atur jenis diskon"}
+            </button>
+          </div>
+          {discRows.map((r) => (
+            <div key={r.key} className="flex items-center gap-2">
+              <input
+                className={`${inputCls} min-w-0 flex-1`}
+                value={r.label}
+                list="daftar-jenis-diskon"
+                onChange={(e) => setDiscRows((rows) => rows.map((x) => (x.key === r.key ? { ...x, label: e.target.value } : x)))}
+                placeholder="Nama diskon"
+              />
+              <input
+                type="number"
+                inputMode="numeric"
+                className={`${inputCls} w-28 shrink-0`}
+                value={r.amount}
+                onChange={(e) => setDiscRows((rows) => rows.map((x) => (x.key === r.key ? { ...x, amount: e.target.value } : x)))}
+                placeholder="Rp"
+              />
+              <button
+                type="button"
+                className="h-11 w-10 shrink-0 rounded-lg border border-stone-300 text-red-700"
+                onClick={() => setDiscRows((rows) => rows.filter((x) => x.key !== r.key))}
+                aria-label="Hapus diskon ini"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <datalist id="daftar-jenis-diskon">
+            {discTypes.map((t) => (
+              <option key={t.id} value={t.name} />
+            ))}
+          </datalist>
+          <div className="flex flex-wrap gap-2">
+            {discTypes.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className="rounded-full border border-stone-300 bg-white px-3 py-1.5 text-sm"
+                onClick={() => { setDiscRows((rows) => [...rows, { key: discKey, label: t.name, amount: "" }]); setDiscKey((k) => k + 1); }}
+              >
+                + {t.name}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="rounded-full border border-dashed border-stone-400 bg-white px-3 py-1.5 text-sm text-stone-600"
+              onClick={() => { setDiscRows((rows) => [...rows, { key: discKey, label: "", amount: "" }]); setDiscKey((k) => k + 1); }}
+            >
+              + Diskon lain
+            </button>
+          </div>
+          {manageTypes && (
+            <div className="space-y-2 rounded-lg bg-stone-50 p-3">
+              <p className="text-xs text-stone-500">Daftar nama diskon yang sering dipakai (tombol di atas).</p>
+              {discTypes.length === 0 && <p className="text-xs text-stone-400">Belum ada. Tambahkan di bawah.</p>}
+              <div className="flex flex-wrap gap-2">
+                {discTypes.map((t) => (
+                  <span key={t.id} className="inline-flex items-center gap-1 rounded-full bg-white py-1 pl-3 pr-1 text-sm ring-1 ring-stone-200">
+                    {t.name}
+                    <button type="button" className="h-7 w-7 rounded-full text-red-700" onClick={() => removeType(t.id)} aria-label={`Hapus ${t.name}`}>✕</button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input className={`${inputCls} min-w-0 flex-1`} value={newType} onChange={(e) => setNewType(e.target.value)} placeholder="Contoh: Diskon member" />
+                <button type="button" className={`${btnGhostCls} shrink-0 px-4`} onClick={addType}>Tambah</button>
+              </div>
+            </div>
+          )}
+        </div>
+        {online && channel !== "offline" && (
           <div>
-            <Label>Diskon (Rp)</Label>
+            <Label>Komisi + promo platform (Rp)</Label>
             <input
               type="number"
               inputMode="numeric"
               className={inputCls}
-              value={discount}
-              onChange={(e) => setDiscount(e.target.value)}
+              value={fee}
+              onChange={(e) => setFee(e.target.value)}
               placeholder="0"
             />
           </div>
-          {online && channel !== "offline" && (
-            <div>
-              <Label>Komisi + promo platform (Rp)</Label>
-              <input
-                type="number"
-                inputMode="numeric"
-                className={inputCls}
-                value={fee}
-                onChange={(e) => setFee(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-          )}
-        </div>
+        )}
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0 text-sm text-stone-500">
             {portions} item, subtotal {rupiah(total)}
@@ -387,7 +525,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                       <div className="truncate text-sm font-medium">{summarize(s)}</div>
                       <div className="text-xs text-stone-500">
                         {timeWib(s.sold_at)}
-                        {s.discount > 0 ? `, diskon ${rupiah(s.discount)}` : ""}
+                        {discountLinesFor(s.discount, discDetails[s.id]).map((d) => `, ${d.label} ${rupiah(d.amount)}`).join("")}
                         {s.platform_fee > 0 ? `, komisi ${rupiah(s.platform_fee)}` : ""}
                       </div>
                     </div>
@@ -450,7 +588,8 @@ function ProductRow({
   const l = cart[m.id];
   const st = stock[m.id];
   const tracked = st?.track_stock ?? false;
-  const overStock = tracked && l && l.qty > st.stock_on_hand;
+  const pack = m.pack_qty ?? 1;
+  const overStock = tracked && l && l.qty * pack > st.stock_on_hand;
   return (
     <>
       <div className="flex items-center gap-3">
@@ -461,6 +600,7 @@ function ProductRow({
           {tracked && (
             <div className={`text-xs font-medium ${overStock ? "text-red-700" : "text-stone-400"}`}>
               Stok: {st.stock_on_hand} {st.stock_unit}
+              {pack !== 1 && `, isi ${pack} ${st.stock_unit} per jual`}
             </div>
           )}
         </div>
