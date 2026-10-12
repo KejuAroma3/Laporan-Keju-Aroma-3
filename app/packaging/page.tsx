@@ -7,7 +7,7 @@ import { fmt, rupiah } from "@/lib/format";
 import { groupByCategory, isSupplyCategory } from "@/lib/group";
 import type { StockRow } from "@/lib/types";
 import { Card, Empty, Notice, PageTitle, ScrollList, SearchInput, Tabs, btnCls, btnGhostCls, type Msg } from "@/components/ui";
-import OwnerOnly from "@/components/OwnerOnly";
+import { loadRole } from "@/lib/authClient";
 import StockSwitch from "@/components/StockSwitch";
 import { OpnameForm, PurchaseForm, UsageBatchForm } from "@/components/StockForms";
 
@@ -21,6 +21,11 @@ export default function PackagingPage() {
   const [usedIn, setUsedIn] = useState<Record<string, number>>({});
   const [msg, setMsg] = useState<Msg>(null);
   const [loading, setLoading] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
+
+  useEffect(() => {
+    loadRole().then((r) => setIsOwner(r.status === "ready" && r.role === "owner"));
+  }, []);
 
   async function load() {
     const [i, r] = await Promise.all([
@@ -46,8 +51,8 @@ export default function PackagingPage() {
     <div>
       <PageTitle sub="Plastik, box, handgloves, label, kabel ties, dan perlengkapan lain.">Stok</PageTitle>
       <StockSwitch />
-      <OwnerOnly feature="stok kemasan">
-        <Tabs
+      <div>
+        {isOwner && <Tabs
           value={tab}
           onChange={(t) => { setTab(t); setMsg(null); }}
           tabs={[
@@ -56,7 +61,7 @@ export default function PackagingPage() {
             { id: "pakai", label: "Pakai" },
             { id: "opname", label: "Opname" },
           ]}
-        />
+        />}
         <Notice msg={msg} />
         {loading ? (
           <p className="py-6 text-center text-sm text-stone-500">Memuat…</p>
@@ -67,18 +72,18 @@ export default function PackagingPage() {
           </Empty>
         ) : (
           <>
-            {tab === "stok" && <SupplyList rows={rows} usedIn={usedIn} />}
-            {tab === "belanja" && <PurchaseForm rows={rows} onDone={done} scoped />}
-            {tab === "pakai" && <UsageBatchForm rows={rows} onDone={done} />}
-            {tab === "opname" && <OpnameForm rows={rows} onDone={done} />}
+            {(tab === "stok" || !isOwner) && <SupplyList rows={rows} usedIn={usedIn} showValue={isOwner} />}
+            {isOwner && tab === "belanja" && <PurchaseForm rows={rows} onDone={done} scoped />}
+            {isOwner && tab === "pakai" && <UsageBatchForm rows={rows} onDone={done} />}
+            {isOwner && tab === "opname" && <OpnameForm rows={rows} onDone={done} />}
           </>
         )}
-      </OwnerOnly>
+      </div>
     </div>
   );
 }
 
-function SupplyList({ rows, usedIn }: { rows: StockRow[]; usedIn: Record<string, number> }) {
+function SupplyList({ rows, usedIn, showValue }: { rows: StockRow[]; usedIn: Record<string, number>; showValue: boolean }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState(ALL);
   const [onlyLow, setOnlyLow] = useState(false);
@@ -107,10 +112,10 @@ function SupplyList({ rows, usedIn }: { rows: StockRow[]; usedIn: Record<string,
         <Card><div className="text-xs text-stone-500">Menipis</div><div className={`text-lg font-bold tabular-nums ${lowCount ? "text-red-700" : ""}`}>{lowCount}</div></Card>
         <Card><div className="text-xs text-stone-500">Habis</div><div className={`text-lg font-bold tabular-nums ${emptyCount ? "text-red-700" : ""}`}>{emptyCount}</div></Card>
       </div>
-      <Card className="mb-3">
+      {showValue && <Card className="mb-3">
         <div className="text-sm text-stone-500">Nilai stok kemasan{cat === ALL ? "" : ` (${cat.toLowerCase()})`}</div>
         <div className="text-xl font-bold tabular-nums">{rupiah(value)}</div>
-      </Card>
+      </Card>}
 
       {categories.length > 1 && (
         <div className="-mx-1 mb-3 flex gap-2 overflow-x-auto px-1 pb-1">
@@ -150,11 +155,13 @@ function SupplyList({ rows, usedIn }: { rows: StockRow[]; usedIn: Record<string,
                         <div className="min-w-0">
                           <div className="truncate font-semibold">{r.name}</div>
                           <div className="text-sm text-stone-500">
-                            Minimum {fmt(r.min_stock)} {r.unit}, {rupiah(r.avg_cost)} per {r.unit}
+                            Minimum {fmt(r.min_stock)} {r.unit}{showValue ? `, ${rupiah(r.avg_cost)} per ${r.unit}` : ""}
                           </div>
-                          <div className={`text-xs ${n === 0 ? "font-medium text-amber-700" : "text-stone-400"}`}>
-                            {n === 0 ? "Belum masuk resep manapun, belum ikut HPP" : `Dipakai di ${n} resep`}
-                          </div>
+                          {showValue && (
+                            <div className={`text-xs ${n === 0 ? "font-medium text-amber-700" : "text-stone-400"}`}>
+                              {n === 0 ? "Belum masuk resep manapun, belum ikut HPP" : `Dipakai di ${n} resep`}
+                            </div>
+                          )}
                         </div>
                         <div className="shrink-0 text-right">
                           <div className={`text-lg font-bold tabular-nums ${r.is_low ? "text-red-700" : ""}`}>{fmt(r.on_hand)}</div>
@@ -174,14 +181,18 @@ function SupplyList({ rows, usedIn }: { rows: StockRow[]; usedIn: Record<string,
           ))}
         </ScrollList>
       )}
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <Link href="/ingredients" className={`${btnGhostCls} text-center`}>Tambah barang baru</Link>
-        <Link href="/recipes" className={`${btnCls} text-center`}>Atur resep</Link>
-      </div>
-      <p className="mt-3 text-xs text-stone-500">
-        Stok berkurang otomatis dari resep (saat produksi atau saat terjual). Yang tidak masuk resep, misalnya
-        sarung tangan, dikurangi lewat tab Pakai.
-      </p>
+      {showValue && (
+        <>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <Link href="/ingredients" className={`${btnGhostCls} text-center`}>Tambah barang baru</Link>
+            <Link href="/recipes" className={`${btnCls} text-center`}>Atur resep</Link>
+          </div>
+          <p className="mt-3 text-xs text-stone-500">
+            Stok berkurang otomatis dari resep (saat produksi atau saat terjual). Yang tidak masuk resep, misalnya
+            sarung tangan, dikurangi lewat tab Pakai.
+          </p>
+        </>
+      )}
     </div>
   );
 }

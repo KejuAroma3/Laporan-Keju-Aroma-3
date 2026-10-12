@@ -129,7 +129,7 @@ ongkir". Butuh `supabase/16-rincian-diskon.sql`.
 
 ## Kemasan dan perlengkapan (plastik, box, handgloves, label, kabel ties)
 - **Stok kemasan**: di menu utama "Stok" ada pilihan **Stok produksi** dan **Stok kemasan** (tombol
-  di atas halaman). Stok kemasan khusus pemilik, berisi barang dengan kategori selain Bahan baku
+  di atas halaman). Pemilik memakai empat tab; staf hanya melihat daftar stok kemasan (tanpa nilai rupiah, harga, dan tombol ubah). Isinya barang dengan kategori selain Bahan baku
   (mis. Bahan kemasan, Bahan habis pakai), dengan empat tab:
   - **Stok**: sisa tiap barang, minimum, nilai, filter kategori, pencarian, "menipis atau habis saja",
     dan penanda barang yang belum masuk resep manapun (belum ikut HPP).
@@ -146,6 +146,13 @@ ongkir". Butuh `supabase/16-rincian-diskon.sql`.
   masuk HPP penjualan itu. Tanpa centang, bahan dipotong saat produksi dan ikut HPP per pcs
   (cocok untuk plastik/label per pcs). Butuh `supabase/17-kemasan-per-penjualan.sql`.
 - Penjualan lama tidak berubah. Resep yang sudah ada tetap dianggap dipakai saat produksi.
+
+## Stok di Beranda
+Bagian "Stok" di bawah Beranda menampilkan **Stok produksi**, **Stok kemasan**, dan **Stok bahan baku**.
+Ketuk "Atur tampilan" (pemilik) untuk memilih blok mana yang tampil dan apakah isinya semua stok atau
+hanya yang menipis. Pilihan tersimpan di perangkat itu saja. Bawaan: produksi dan kemasan tampil, semua
+stok. Daftar produksi mengikuti urutan dan penyatuan varian dari Stok > Atur list. Staf melihat stok
+produksi dan stok kemasan (tanpa bahan baku dan tanpa rupiah). Tidak ada SQL baru.
 
 ## Cetak struk
 

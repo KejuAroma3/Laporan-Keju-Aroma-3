@@ -18,10 +18,11 @@ import {
   startOfWeekIso,
   todayJkt,
 } from "@/lib/format";
-import type { BestSeller, Period, SaleRow, StockRow } from "@/lib/types";
+import type { BestSeller, Period, SaleRow } from "@/lib/types";
 import { loadRole } from "@/lib/authClient";
-import { Card, Empty, Notice, PageTitle, Stat, Tabs, type Msg } from "@/components/ui";
+import { Card, Notice, PageTitle, Stat, Tabs, type Msg } from "@/components/ui";
 import BestSellerList from "@/components/BestSellerList";
+import HomeStock from "@/components/HomeStock";
 
 const PERIOD_TABS: { id: Period; label: string }[] = [
   { id: "harian", label: "Harian" },
@@ -46,7 +47,6 @@ export default function Dashboard() {
   const [today, setToday] = useState({ revenue: 0, profit: 0, portions: 0 });
   const [monthNet, setMonthNet] = useState(0);
   const [monthOpex, setMonthOpex] = useState(0);
-  const [low, setLow] = useState<StockRow[]>([]);
   const [msg, setMsg] = useState<Msg>(null);
 
   const [period, setPeriod] = useState<Period>("harian");
@@ -75,16 +75,15 @@ export default function Dashboard() {
   async function loadSummary() {
     const t = todayJkt();
     const { start, end } = rangeIso(t, t);
-    const [s, p, l] = await Promise.all([
+    const [s, p] = await Promise.all([
       supabase
         .from("sales")
         .select("discount, platform_fee, sale_items(qty, unit_price, unit_cogs)")
         .gte("sold_at", start)
         .lte("sold_at", end),
       supabase.rpc("report_pnl", { p_from: monthStartJkt(), p_to: t }),
-      supabase.from("v_stock").select("*").eq("is_low", true).order("name"),
     ]);
-    const err = [s, p, l].find((x) => x.error)?.error;
+    const err = [s, p].find((x) => x.error)?.error;
     if (err) setMsg({ type: "err", text: err.message });
 
     const rows = (s.data ?? []) as SaleRow[];
@@ -103,7 +102,6 @@ export default function Dashboard() {
     const pnl = (p.data ?? [])[0];
     setMonthNet(pnl?.net_profit ?? 0);
     setMonthOpex(pnl?.opex ?? 0);
-    setLow((l.data ?? []) as StockRow[]);
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadSummary(); }, []);
@@ -198,23 +196,7 @@ export default function Dashboard() {
         )}
       </Card>
 
-      <Card>
-        <h2 className="mb-3 font-semibold">Stok menipis</h2>
-        {low.length === 0 ? (
-          <Empty>Semua bahan masih di atas batas minimum.</Empty>
-        ) : (
-          <ul className="divide-y divide-stone-100">
-            {low.map((r) => (
-              <li key={r.id} className="flex justify-between py-2 text-sm">
-                <span className="font-medium">{r.name}</span>
-                <span className="tabular-nums text-red-700">
-                  sisa {r.on_hand} {r.unit}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+      <HomeStock isOwner={isOwner} />
     </div>
   );
 }
