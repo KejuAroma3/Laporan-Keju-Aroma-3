@@ -25,7 +25,7 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
    `supabase/6-pengaturan-aplikasi.sql` (butuh tabel dari langkah karyawan), lalu
    `supabase/7-tanggal-belanja.sql` (mengganti fungsi record_purchase; jangan jalankan ulang 1-skema.sql sesudahnya),
    `supabase/8-koreksi-penjualan.sql`, `supabase/9-stok-produk.sql`, `supabase/10-satuan-produk-dan-akses.sql`, `supabase/11-kategori-bahan.sql`, `supabase/12-pengaturan-struk.sql`, lalu
-   `supabase/13-varian-produk.sql`, lalu `supabase/14-urutan-produksi.sql`, lalu `supabase/15-isi-per-penjualan.sql`, lalu `supabase/16-rincian-diskon.sql`.
+   `supabase/13-varian-produk.sql`, lalu `supabase/14-urutan-produksi.sql`, lalu `supabase/15-isi-per-penjualan.sql`, lalu `supabase/16-rincian-diskon.sql`, lalu `supabase/17-kemasan-per-penjualan.sql`.
 2. Sudah pernah menjalankan skema sebelumnya: cukup jalankan file yang belum pernah dijalankan,
    urut dari nomor terkecil. Semua file aman dijalankan berulang.
 3. Authentication > Users: buat akun untuk Anda dan staf.
@@ -121,6 +121,20 @@ ongkir". Butuh `supabase/16-rincian-diskon.sql`.
 - Total semua diskon tetap disimpan sebagai diskon penjualan, jadi laporan laba rugi dan kas tidak
   berubah. Rincian muncul di riwayat penjualan, saat Ubah, dan di struk.
 - Penjualan lama yang hanya punya satu angka diskon tampil sebagai satu baris "Diskon".
+
+## Kemasan dan perlengkapan (plastik, box, handgloves, label, kabel ties)
+- **Cek stok**: Lainnya > Cek stok bahan & kemasan. Filter kategori (Bahan baku, Bahan kemasan, Bahan
+  habis pakai), pencarian, tombol "menipis atau habis saja", sisa dan minimum tiap barang, serta
+  penanda barang yang belum masuk resep manapun (belum ikut HPP). Barang baru ditambah di Lainnya >
+  Bahan baku dengan kategori yang sesuai, dibeli lewat Stok bahan > Belanja.
+- **Masuk HPP**: masukkan ke Resep seperti bahan lain. Kolom "Untuk berapa" membantu barang yang
+  dipakai sedikit-sedikit: 1 pasang handgloves untuk 50 pcs = 0,02 per pcs. Resep menampilkan
+  perkiraan HPP per penjualan beserta rincian per kategori (bahan baku, kemasan, habis pakai).
+- **Dipakai saat dijual**: untuk menu yang diproduksi dalam batch, centang ini pada box/kantong yang
+  dipasang per kotak yang terjual (mis. box hampers isi 15). Stoknya dipotong tiap penjualan dan
+  masuk HPP penjualan itu. Tanpa centang, bahan dipotong saat produksi dan ikut HPP per pcs
+  (cocok untuk plastik/label per pcs). Butuh `supabase/17-kemasan-per-penjualan.sql`.
+- Penjualan lama tidak berubah. Resep yang sudah ada tetap dianggap dipakai saat produksi.
 
 ## Cetak struk
 

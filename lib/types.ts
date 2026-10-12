@@ -62,6 +62,7 @@ export type RecipeItem = {
   menu_item_id: string;
   ingredient_id: string;
   qty: number;
+  per_sale?: boolean; // supabase/17-kemasan-per-penjualan.sql: dipakai saat dijual, bukan saat produksi
 };
 
 export type StockRow = {

@@ -6,9 +6,10 @@ import { supabase } from "@/lib/supabase";
 import { fmt, pct, rupiah } from "@/lib/format";
 import { groupByCategory, groupByProduct } from "@/lib/group";
 import type { Ingredient, MenuItem, ProductGroup, ProductStockRow, RecipeItem } from "@/lib/types";
-import { Card, Empty, Notice, PageTitle, ScrollList, SearchInput, btnCls, inputCls, type Msg } from "@/components/ui";
+import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, btnCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
 import { resolveSharedStock } from "@/lib/production";
+import { perUnitQty, recipeCostBreakdown } from "@/lib/recipecost";
 import OwnerOnly from "@/components/OwnerOnly";
 
 export default function RecipesPage() {
@@ -52,6 +53,12 @@ export default function RecipesPage() {
       .filter((r) => r.menu_item_id === id)
       .reduce((s, r) => s + r.qty * (ings.find((i) => i.id === r.ingredient_id)?.avg_cost ?? 0), 0);
 
+  // Bahan yang ditandai "dipakai saat dijual" ikut HPP penjualan, bukan HPP produksi.
+  const saleCost = (id: string) =>
+    recipes
+      .filter((r) => r.menu_item_id === id && r.per_sale)
+      .reduce((sum, r) => sum + r.qty * (ings.find((i) => i.id === r.ingredient_id)?.avg_cost ?? 0), 0);
+
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     if (!term) return menus;
@@ -92,7 +99,7 @@ export default function RecipesPage() {
                       const count = recipes.filter((r) => r.menu_item_id === m.id).length;
                       const st = stock[m.id];
                       const tracked = st?.track_stock ?? false;
-                      const hpp = tracked ? (st?.avg_product_cost ?? m.avg_product_cost) * (m.pack_qty ?? 1) : cost(m.id);
+                      const hpp = tracked ? (st?.avg_product_cost ?? m.avg_product_cost) * (m.pack_qty ?? 1) + saleCost(m.id) : cost(m.id);
                       const otherVariants = bucket.items.filter((x) => x.id !== m.id);
                       return (
                         <Card key={m.id} className={m.is_active ? "" : "opacity-60"}>
@@ -122,6 +129,7 @@ export default function RecipesPage() {
                               key={m.id}
                               menu={m}
                               ings={ings}
+                              tracked={tracked}
                               recipe={recipes.filter((r) => r.menu_item_id === m.id)}
                               otherVariants={otherVariants}
                               recipesByMenu={recipes}
@@ -146,6 +154,7 @@ export default function RecipesPage() {
 function RecipeEditor({
   menu,
   ings,
+  tracked,
   recipe,
   otherVariants,
   recipesByMenu,
@@ -153,6 +162,7 @@ function RecipeEditor({
 }: {
   menu: MenuItem;
   ings: Ingredient[];
+  tracked: boolean;
   recipe: RecipeItem[];
   otherVariants: MenuItem[];
   recipesByMenu: RecipeItem[];
@@ -161,18 +171,36 @@ function RecipeEditor({
   const [copyFrom, setCopyFrom] = useState("");
   const [ing, setIng] = useState("");
   const [qty, setQty] = useState("");
+  const [forPcs, setForPcs] = useState("");
+  const [perSale, setPerSale] = useState(false);
   const sel = ings.find((i) => i.id === ing);
+  const effQty = Number(qty) > 0 ? perUnitQty(Number(qty), Number(forPcs) || 0) : 0;
+  const cost = recipeCostBreakdown(
+    recipe.map((r) => {
+      const i = ings.find((x) => x.id === r.ingredient_id);
+      return { qty: r.qty, per_sale: r.per_sale, avg_cost: i?.avg_cost ?? 0, category: i?.category ?? null };
+    }),
+    tracked,
+    menu.pack_qty ?? 1
+  );
 
   async function addLine() {
     if (!ing || !(Number(qty) > 0)) {
       onChanged({ type: "err", text: `Pilih bahan dan isi jumlah per ${menu.stock_unit}.` });
       return;
     }
+    const existing = recipe.find((r) => r.ingredient_id === ing);
+    // per_sale hanya dikirim bila perlu, supaya tetap jalan sebelum supabase/17-kemasan-per-penjualan.sql dijalankan
+    const flag = tracked && (perSale || existing?.per_sale) ? { per_sale: perSale } : {};
     const { error } = await supabase
       .from("recipe_items")
-      .upsert({ menu_item_id: menu.id, ingredient_id: ing, qty: Number(qty) }, { onConflict: "menu_item_id,ingredient_id" });
-    if (!error) { setIng(""); setQty(""); }
-    onChanged(error ? { type: "err", text: error.message } : { type: "ok", text: "Resep diperbarui." });
+      .upsert({ menu_item_id: menu.id, ingredient_id: ing, qty: effQty, ...flag }, { onConflict: "menu_item_id,ingredient_id" });
+    if (!error) { setIng(""); setQty(""); setForPcs(""); setPerSale(false); }
+    onChanged(
+      error
+        ? { type: "err", text: /per_sale/.test(error.message) ? "Penanda 'dipakai saat dijual' belum aktif. Jalankan supabase/17-kemasan-per-penjualan.sql di Supabase (SQL Editor)." : error.message }
+        : { type: "ok", text: "Resep diperbarui." }
+    );
   }
 
   async function removeLine(ingredientId: string) {
@@ -197,7 +225,7 @@ function RecipeEditor({
     const { error } = await supabase
       .from("recipe_items")
       .upsert(
-        source.map((r) => ({ menu_item_id: menu.id, ingredient_id: r.ingredient_id, qty: r.qty })),
+        source.map((r) => ({ menu_item_id: menu.id, ingredient_id: r.ingredient_id, qty: r.qty, ...(r.per_sale ? { per_sale: true } : {}) })),
         { onConflict: "menu_item_id,ingredient_id" }
       );
     onChanged(
@@ -225,6 +253,8 @@ function RecipeEditor({
                   <span>
                     {i?.name ?? "Bahan dihapus"}: {fmt(r.qty)} {i?.unit}
                     <span className="text-stone-500"> ({rupiah(r.qty * (i?.avg_cost ?? 0))})</span>
+                    {i?.category && <span className="block text-xs text-stone-400">{i.category}</span>}
+                    {tracked && r.per_sale && <span className="block text-xs font-medium text-brand-800">Dipakai saat dijual</span>}
                   </span>
                   <button className="h-10 px-3 font-medium text-red-700" onClick={() => removeLine(r.ingredient_id)}>
                     Hapus
@@ -235,6 +265,24 @@ function RecipeEditor({
           </ul>
         )}
       </div>
+
+      {recipe.length > 0 && (
+        <div className="rounded-xl bg-stone-50 p-3 text-sm">
+          <div className="mb-1 flex items-baseline justify-between gap-3 font-semibold">
+            <span>Perkiraan HPP per penjualan</span>
+            <span className="tabular-nums">{rupiah(cost.total)}</span>
+          </div>
+          {cost.byCategory.map(([cat, amount]) => (
+            <div key={cat} className="flex justify-between gap-3 text-stone-600">
+              <span>{cat}</span>
+              <span className="tabular-nums">{rupiah(amount)}</span>
+            </div>
+          ))}
+          {tracked && (menu.pack_qty ?? 1) !== 1 && (
+            <p className="mt-1 text-xs text-stone-500">Bahan produksi sudah dikali isi {menu.pack_qty} per penjualan.</p>
+          )}
+        </div>
+      )}
 
       {otherVariants.length > 0 && recipe.length === 0 && (
         <div className="space-y-2 rounded-xl bg-amber-50 p-3">
@@ -264,14 +312,53 @@ function RecipeEditor({
             </optgroup>
           ))}
         </select>
-        <input
-          type="number"
-          inputMode="decimal"
-          className={inputCls}
-          value={qty}
-          onChange={(e) => setQty(e.target.value)}
-          placeholder={sel ? `Jumlah per ${menu.stock_unit} (${sel.unit})` : `Jumlah per ${menu.stock_unit}`}
-        />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Jumlah dipakai{sel ? ` (${sel.unit})` : ""}</Label>
+            <input
+              type="number"
+              inputMode="decimal"
+              className={inputCls}
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+              placeholder="Contoh: 1"
+            />
+          </div>
+          <div>
+            <Label>Untuk berapa {tracked ? (perSale ? "penjualan" : menu.stock_unit) : "penjualan"}</Label>
+            <input
+              type="number"
+              inputMode="decimal"
+              className={inputCls}
+              value={forPcs}
+              onChange={(e) => setForPcs(e.target.value)}
+              placeholder="1"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-stone-500">
+          Kosongkan kolom kedua kalau jumlahnya sudah per 1. Untuk barang yang dipakai sedikit-sedikit, isi
+          misalnya 1 pasang handgloves untuk 50: sistem menghitung 0,02 per satuan.
+        </p>
+        {effQty > 0 && sel && (
+          <div className="rounded-lg bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-900">
+            Masuk resep: {fmt(Math.round(effQty * 10000) / 10000)} {sel.unit}, biaya {rupiah(effQty * sel.avg_cost)}
+          </div>
+        )}
+        {tracked ? (
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0" checked={perSale} onChange={(e) => setPerSale(e.target.checked)} />
+            <span>
+              Dipakai saat dijual (bukan saat produksi)
+              <span className="block text-xs text-stone-500">
+                Centang untuk box, kantong, atau stiker yang dipasang per kotak yang terjual. Stoknya dipotong tiap penjualan dan
+                masuk HPP penjualan. Kalau tidak dicentang, bahan ini dipotong saat produksi dan ikut HPP per {menu.stock_unit}.
+              </span>
+            </span>
+          </label>
+        ) : (
+          <p className="text-xs text-stone-500">Menu ini dibuat saat dipesan, jadi semua bahan dipotong tiap kali terjual.</p>
+        )}
         <button className={`${btnCls} w-full`} onClick={addLine}>Tambah ke resep</button>
       </div>
     </div>
