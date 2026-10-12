@@ -25,7 +25,7 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
    `supabase/6-pengaturan-aplikasi.sql` (butuh tabel dari langkah karyawan), lalu
    `supabase/7-tanggal-belanja.sql` (mengganti fungsi record_purchase; jangan jalankan ulang 1-skema.sql sesudahnya),
    `supabase/8-koreksi-penjualan.sql`, `supabase/9-stok-produk.sql`, `supabase/10-satuan-produk-dan-akses.sql`, `supabase/11-kategori-bahan.sql`, `supabase/12-pengaturan-struk.sql`, lalu
-   `supabase/13-varian-produk.sql`, lalu `supabase/14-urutan-produksi.sql`, lalu `supabase/15-isi-per-penjualan.sql`, lalu `supabase/16-rincian-diskon.sql`, lalu `supabase/17-kemasan-per-penjualan.sql`.
+   `supabase/13-varian-produk.sql`, lalu `supabase/14-urutan-produksi.sql`, lalu `supabase/15-isi-per-penjualan.sql`, lalu `supabase/16-rincian-diskon.sql`, lalu `supabase/17-kemasan-per-penjualan.sql`, lalu `supabase/18-isi-berlaku-semua-menu.sql`.
 2. Sudah pernah menjalankan skema sebelumnya: cukup jalankan file yang belum pernah dijalankan,
    urut dari nomor terkecil. Semua file aman dijalankan berulang.
 3. Authentication > Users: buat akun untuk Anda dan staf.
@@ -110,6 +110,11 @@ dan "Hampers Keju Aroma Original isi 15". Butuh `supabase/15-isi-per-penjualan.s
 - Pakai bersama "Satukan varian" (Produksi > Atur list): produksi dicatat dalam pcs sekali, semua isi
   mengurangi stok yang sama. Menu isi 15 tidak perlu resep sendiri.
 - Penjualan lama tidak berubah (isi dihitung 1).
+- Resep selalu dihitung **per 1 pcs**. Isi berlaku untuk semua menu, termasuk yang belum pernah
+  diproduksi (dibuat saat dipesan): bahan terpotong sebanyak resep x isi. Bahan yang dicentang
+  "Dipakai sekali per penjualan" (box, kantong) tidak dikali isi. Butuh `supabase/18-isi-berlaku-semua-menu.sql`.
+  Di daftar Resep, keterangan "dari produksi" berarti HPP dari stok produksi, "dari resep" berarti
+  dihitung dari resep (menu belum diproduksi atau belum disatukan stoknya), dan "isi N" muncul bila isi bukan 1.
 
 ## Diskon bernama di Rekap penjualan
 Satu penjualan bisa punya beberapa diskon, misalnya di GoFood: "Diskon total belanja" dan "Diskon

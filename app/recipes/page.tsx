@@ -48,10 +48,18 @@ export default function RecipesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const cost = (id: string) =>
-    recipes
-      .filter((r) => r.menu_item_id === id)
-      .reduce((s, r) => s + r.qty * (ings.find((i) => i.id === r.ingredient_id)?.avg_cost ?? 0), 0);
+  const cost = (id: string) => {
+    const m = menus.find((x) => x.id === id);
+    return recipeCostBreakdown(
+      recipes
+        .filter((r) => r.menu_item_id === id)
+        .map((r) => {
+          const i = ings.find((x) => x.id === r.ingredient_id);
+          return { qty: r.qty, per_sale: r.per_sale, avg_cost: i?.avg_cost ?? 0, category: i?.category ?? null };
+        }),
+      m?.pack_qty ?? 1
+    ).total;
+  };
 
   // Bahan yang ditandai "dipakai saat dijual" ikut HPP penjualan, bukan HPP produksi.
   const saleCost = (id: string) =>
@@ -117,7 +125,9 @@ export default function RecipesPage() {
                                 <>
                                   <div className="font-semibold tabular-nums">HPP {rupiah(hpp)}</div>
                                   <div className="text-brand-800">margin {pct(m.price - hpp, m.price)}</div>
-                                  {tracked && <div className="text-xs text-stone-400">dari produksi{(m.pack_qty ?? 1) !== 1 ? `, isi ${m.pack_qty}` : ""}</div>}
+                                  <div className="text-xs text-stone-400">
+                                    {tracked ? "dari produksi" : "dari resep"}{(m.pack_qty ?? 1) !== 1 ? `, isi ${m.pack_qty}` : ""}
+                                  </div>
                                 </>
                               ) : (
                                 <div className="font-medium text-amber-700">Resep kosong</div>
@@ -180,7 +190,6 @@ function RecipeEditor({
       const i = ings.find((x) => x.id === r.ingredient_id);
       return { qty: r.qty, per_sale: r.per_sale, avg_cost: i?.avg_cost ?? 0, category: i?.category ?? null };
     }),
-    tracked,
     menu.pack_qty ?? 1
   );
 
@@ -191,7 +200,7 @@ function RecipeEditor({
     }
     const existing = recipe.find((r) => r.ingredient_id === ing);
     // per_sale hanya dikirim bila perlu, supaya tetap jalan sebelum supabase/17-kemasan-per-penjualan.sql dijalankan
-    const flag = tracked && (perSale || existing?.per_sale) ? { per_sale: perSale } : {};
+    const flag = perSale || existing?.per_sale ? { per_sale: perSale } : {};
     const { error } = await supabase
       .from("recipe_items")
       .upsert({ menu_item_id: menu.id, ingredient_id: ing, qty: effQty, ...flag }, { onConflict: "menu_item_id,ingredient_id" });
@@ -263,7 +272,7 @@ function RecipeEditor({
                     {i?.name ?? "Bahan dihapus"}: {fmt(r.qty)} {i?.unit}
                     <span className="text-stone-500"> ({rupiah(r.qty * (i?.avg_cost ?? 0))})</span>
                     {i?.category && <span className="block text-xs text-stone-400">{i.category}</span>}
-                    {tracked && r.per_sale && <span className="block text-xs font-medium text-brand-800">Dipakai saat dijual</span>}
+                    {r.per_sale && <span className="block text-xs font-medium text-brand-800">Sekali per penjualan (tidak dikali isi)</span>}
                   </span>
                   <button className="h-10 px-3 font-medium text-red-700" onClick={() => removeLine(r.ingredient_id)}>
                     Hapus
@@ -287,8 +296,11 @@ function RecipeEditor({
               <span className="tabular-nums">{rupiah(amount)}</span>
             </div>
           ))}
-          {tracked && (menu.pack_qty ?? 1) !== 1 && (
-            <p className="mt-1 text-xs text-stone-500">Bahan produksi sudah dikali isi {menu.pack_qty} per penjualan.</p>
+          {(menu.pack_qty ?? 1) !== 1 && (
+            <p className="mt-1 text-xs text-stone-500">
+              Bahan sudah dikali isi {menu.pack_qty} per penjualan (resep dihitung per 1 {menu.stock_unit}).
+              Bahan yang ditandai &quot;sekali per penjualan&quot; tidak dikali.
+            </p>
           )}
         </div>
       )}
@@ -334,7 +346,7 @@ function RecipeEditor({
             />
           </div>
           <div>
-            <Label>Untuk berapa {tracked ? (perSale ? "penjualan" : menu.stock_unit) : "penjualan"}</Label>
+            <Label>Untuk berapa {perSale ? "penjualan" : menu.stock_unit}</Label>
             <input
               type="number"
               inputMode="decimal"
@@ -354,19 +366,22 @@ function RecipeEditor({
             Masuk resep: {fmt(Math.round(effQty * 10000) / 10000)} {sel.unit}, biaya {rupiah(effQty * sel.avg_cost)}
           </div>
         )}
-        {tracked ? (
-          <label className="flex items-start gap-2 text-sm">
-            <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0" checked={perSale} onChange={(e) => setPerSale(e.target.checked)} />
-            <span>
-              Dipakai saat dijual (bukan saat produksi)
-              <span className="block text-xs text-stone-500">
-                Centang untuk box, kantong, atau stiker yang dipasang per kotak yang terjual. Stoknya dipotong tiap penjualan dan
-                masuk HPP penjualan. Kalau tidak dicentang, bahan ini dipotong saat produksi dan ikut HPP per {menu.stock_unit}.
-              </span>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0" checked={perSale} onChange={(e) => setPerSale(e.target.checked)} />
+          <span>
+            Dipakai sekali per penjualan{tracked ? " (bukan saat produksi)" : ""}
+            <span className="block text-xs text-stone-500">
+              Centang untuk box, kantong, atau stiker yang dipasang per kotak yang terjual, berapa pun isinya.
+              {(menu.pack_qty ?? 1) !== 1 ? ` Tanpa centang, jumlahnya dikali isi ${menu.pack_qty}.` : ""}
+              {tracked ? ` Tanpa centang, bahan ini dipotong saat produksi dan ikut HPP per ${menu.stock_unit}.` : ""}
             </span>
-          </label>
-        ) : (
-          <p className="text-xs text-stone-500">Menu ini dibuat saat dipesan, jadi semua bahan dipotong tiap kali terjual.</p>
+          </span>
+        </label>
+        {!tracked && (
+          <p className="text-xs text-stone-500">
+            Menu ini dibuat saat dipesan: bahan dipotong tiap kali terjual, sebanyak resep per {menu.stock_unit} x isi
+            {(menu.pack_qty ?? 1) !== 1 ? ` (${menu.pack_qty})` : ""}.
+          </p>
         )}
         <button className={`${btnCls} w-full`} onClick={addLine}>Tambah ke resep</button>
       </div>

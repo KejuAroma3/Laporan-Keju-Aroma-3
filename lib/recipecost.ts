@@ -11,14 +11,15 @@ export type CostBreakdown = {
 };
 
 // Perkiraan HPP per satu penjualan dari resep, memakai harga rata-rata bahan saat ini.
-//  - tracked (menu diproduksi dalam batch): bahan produksi dihitung per pcs lalu dikali isi per
-//    penjualan; bahan "dipakai saat dijual" dihitung per penjualan (tidak dikali isi).
-//  - tidak tracked (dibuat saat dipesan): semua bahan dihitung per penjualan.
-export function recipeCostBreakdown(lines: CostLine[], tracked: boolean, pack = 1): CostBreakdown {
+// Resep selalu per 1 pcs: bahan biasa dikali isi per penjualan, bahan yang ditandai
+// "dipakai saat dijual" (per_sale) dihitung sekali per penjualan.
+// Berlaku sama untuk menu yang diproduksi dalam batch (bagian produksinya sebenarnya memakai HPP
+// stok, ini perkiraan dari resep) maupun menu yang dibuat saat dipesan.
+export function recipeCostBreakdown(lines: CostLine[], pack = 1): CostBreakdown {
   const by = new Map<string, number>();
   let total = 0;
   for (const l of lines) {
-    const mult = tracked && !l.per_sale ? pack : 1;
+    const mult = l.per_sale ? 1 : pack;
     const cost = l.qty * l.avg_cost * mult;
     const label = l.category?.trim() || "Tanpa kategori";
     by.set(label, (by.get(label) ?? 0) + cost);
