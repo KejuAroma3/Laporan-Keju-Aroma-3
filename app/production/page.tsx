@@ -488,6 +488,48 @@ function ArrangeList({ entries, ready, onDone }: { entries: ProductionEntry[]; r
     onDone({ type: "ok", text: `Varian "${e.label}" dipisah lagi.` });
   }
 
+  // Memasukkan satu menu ke produk dasar lain supaya bisa disatukan stoknya. Menu yang dipindah:
+  // menu tunggal, atau satu-satunya varian dalam produk dasarnya.
+  const moverOf = (e: ProductionEntry) => (e.kind === "single" ? e.rows[0] : e.variants.length === 1 ? e.variants[0] : null);
+
+  async function joinTo(e: ProductionEntry, targetKey: string) {
+    const mover = moverOf(e);
+    const target = entries.find((x) => x.key === targetKey);
+    if (!mover || !target) return;
+    const variant = prompt(`Nama varian untuk "${mover.name}" di dalam "${target.label}":`, mover.variant_name || mover.name)?.trim();
+    if (!variant) return;
+    setBusy(true);
+    let groupId = target.groupId;
+    if (!groupId) {
+      // target menu tunggal: buat produk dasar baru dari namanya, lalu masukkan menu itu juga
+      const created = await supabase.from("product_groups").insert({ name: target.label }).select("id").single();
+      if (created.error || !created.data) {
+        setBusy(false);
+        return fail(created.error ?? { message: "Gagal membuat produk dasar." });
+      }
+      groupId = created.data.id as string;
+      const t = target.rows[0];
+      const up = await supabase
+        .from("menu_items")
+        .update({ product_group_id: groupId, variant_name: t.variant_name || t.name })
+        .eq("id", t.id);
+      if (up.error) {
+        setBusy(false);
+        return fail(up.error);
+      }
+    }
+    const { error } = await supabase
+      .from("menu_items")
+      .update({ product_group_id: groupId, variant_name: variant })
+      .eq("id", mover.id);
+    setBusy(false);
+    if (error) return fail(error);
+    onDone({
+      type: "ok",
+      text: `"${mover.name}" dimasukkan ke "${target.label}". Sekarang buka barisnya di sini dan tekan "Satukan varian jadi satu stok".`,
+    });
+  }
+
   const keys = entries.map((e) => e.key);
 
   return (
@@ -553,6 +595,23 @@ function ArrangeList({ entries, ready, onDone }: { entries: ProductionEntry[]; r
                   <button className={`${btnCls} w-full`} onClick={() => merge(e)} disabled={busy}>
                     Satukan varian jadi satu stok
                   </button>
+                </div>
+              )}
+              {moverOf(e) && entries.length > 1 && (
+                <div className="mt-3 space-y-2 rounded-lg bg-stone-50 p-3">
+                  <div className="text-sm font-medium">Sebenarnya varian dari produk lain?</div>
+                  <select
+                    className={inputCls}
+                    value=""
+                    disabled={busy}
+                    onChange={(ev) => ev.target.value && joinTo(e, ev.target.value)}
+                  >
+                    <option value="">Masukkan ke produk dasar…</option>
+                    {entries.filter((x) => x.key !== e.key).map((x) => (
+                      <option key={x.key} value={x.key}>{x.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-stone-500">Setelah masuk, varian bisa disatukan stoknya.</p>
                 </div>
               )}
               {e.kind === "shared" && (
