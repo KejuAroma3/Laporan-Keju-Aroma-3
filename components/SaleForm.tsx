@@ -9,6 +9,7 @@ import { resolveSharedStock, stockHolderId, stockNeeded } from "@/lib/production
 import type { Channel, MenuItem, ProductGroup, ProductStockRow } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
+import { priceFor, type PriceMap } from "@/lib/platformprice";
 import { cleanDiscounts, discountLinesFor, sumDiscounts, type DiscountInput, type DiscountLine } from "@/lib/discounts";
 
 type Line = { qty: number; price: number };
@@ -36,6 +37,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const [productGroups, setProductGroups] = useState<ProductGroup[]>([]);
   const [cart, setCart] = useState<Record<string, Line>>({});
   const [channel, setChannel] = useState<Channel>("offline");
+  const [prices, setPrices] = useState<PriceMap>({});
   const [date, setDate] = useState(todayJkt());
   const [discRows, setDiscRows] = useState<DiscountInput[]>([]);
   const [discKey, setDiscKey] = useState(1);
@@ -64,6 +66,15 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     // boleh gagal jika supabase/16-rincian-diskon.sql belum dijalankan
     const t = await supabase.from("discount_types").select("id, name").order("created_at");
     if (!t.error) setDiscTypes((t.data ?? []) as { id: string; name: string }[]);
+    // boleh gagal jika supabase/19-harga-per-platform.sql belum dijalankan
+    const pr = await supabase.from("menu_prices").select("menu_item_id, channel, price");
+    if (!pr.error) {
+      const map: PriceMap = {};
+      for (const r of (pr.data ?? []) as { menu_item_id: string; channel: Channel; price: number }[]) {
+        (map[r.menu_item_id] ??= {})[r.channel] = Number(r.price);
+      }
+      setPrices(map);
+    }
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
@@ -102,11 +113,25 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   function change(m: MenuItem, delta: number) {
     setLastSavedId(null);
     setCart((c) => {
-      const cur = c[m.id] ?? { qty: 0, price: m.price };
+      const cur = c[m.id] ?? { qty: 0, price: priceFor(m, channel, prices) };
       const qty = Math.max(0, cur.qty + delta);
       const next = { ...c };
       if (qty === 0) delete next[m.id];
       else next[m.id] = { ...cur, qty };
+      return next;
+    });
+  }
+
+  // Ganti platform: harga baris di keranjang ikut harga platform itu (harga yang sudah diubah manual ikut diganti).
+  function switchChannel(c: Channel) {
+    setChannel(c);
+    if (c === "offline") setFee("");
+    setCart((cur) => {
+      const next: Record<string, Line> = {};
+      for (const [id, l] of Object.entries(cur)) {
+        const menu = menus.find((m) => m.id === id);
+        next[id] = menu ? { ...l, price: priceFor(menu, c, prices) } : l;
+      }
       return next;
     });
   }
@@ -311,7 +336,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
               {RECAP_CHANNELS.map((c) => (
                 <button
                   key={c}
-                  onClick={() => { setChannel(c); if (c === "offline") setFee(""); }}
+                  onClick={() => switchChannel(c)}
                   className={`h-12 rounded-xl border text-sm font-semibold ${
                     channel === c
                       ? "border-brand-700 bg-brand-700 text-brand-fg"
@@ -364,6 +389,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                       stock={stock}
                       online={online}
                       channel={channel}
+                      prices={prices}
                       change={change}
                       setPrice={setPrice}
                     />
@@ -382,6 +408,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                           stock={stock}
                           online={online}
                           channel={channel}
+                      prices={prices}
                           change={change}
                           setPrice={setPrice}
                         />
@@ -573,6 +600,7 @@ function ProductRow({
   stock,
   online,
   channel,
+  prices,
   change,
   setPrice,
 }: {
@@ -582,6 +610,7 @@ function ProductRow({
   stock: Record<string, ProductStockRow>;
   online: boolean;
   channel: Channel;
+  prices: PriceMap;
   change: (m: MenuItem, delta: number) => void;
   setPrice: (id: string, price: number) => void;
 }) {
@@ -596,7 +625,7 @@ function ProductRow({
         <Thumb url={m.photo_url} name={m.name} size={44} />
         <div className="min-w-0 flex-1">
           <div className="truncate font-semibold">{label}</div>
-          <div className="text-sm text-stone-500">{rupiah(m.price)}</div>
+          <div className="text-sm text-stone-500">{rupiah(priceFor(m, channel, prices))}</div>
           {tracked && (
             <div className={`text-xs font-medium ${overStock ? "text-red-700" : "text-stone-400"}`}>
               Stok: {st.stock_on_hand} {st.stock_unit}

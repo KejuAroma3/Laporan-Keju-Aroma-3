@@ -5,7 +5,10 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { fmt, rupiah } from "@/lib/format";
 import { groupByProduct } from "@/lib/group";
-import type { MenuItem, ProductGroup, ProductStockRow, RecipeItem } from "@/lib/types";
+import type { Channel, Ingredient, MenuItem, ProductGroup, ProductStockRow, RecipeItem } from "@/lib/types";
+import PlatformPrices from "@/components/PlatformPrices";
+import { menuHpp } from "@/lib/menucost";
+import type { PriceMap } from "@/lib/platformprice";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
 import PhotoUpload from "@/components/PhotoUpload";
@@ -35,6 +38,8 @@ async function resolveProductGroup(name: string, category: string | null): Promi
 export default function MenuPage() {
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [recipes, setRecipes] = useState<RecipeItem[]>([]);
+  const [ings, setIngs] = useState<Ingredient[]>([]);
+  const [prices, setPrices] = useState<PriceMap>({});
   const [groups, setGroups] = useState<ProductGroup[]>([]);
   const [stock, setStock] = useState<Record<string, ProductStockRow>>({});
   const [open, setOpen] = useState<string | null>(null);
@@ -48,16 +53,26 @@ export default function MenuPage() {
   const [msg, setMsg] = useState<Msg>(null);
 
   async function load() {
-    const [m, r, s, g] = await Promise.all([
+    const [m, r, s, g, i, pr] = await Promise.all([
       supabase.from("menu_items").select("*").order("category").order("name"),
       supabase.from("recipe_items").select("*"),
       supabase.from("v_product_stock").select("*"), // boleh gagal jika supabase/9-stok-produk.sql belum dijalankan
       supabase.from("product_groups").select("*").order("name"), // boleh gagal jika supabase/13-varian-produk.sql belum dijalankan
+      supabase.from("ingredients").select("*"),
+      supabase.from("menu_prices").select("menu_item_id, channel, price"), // boleh gagal jika supabase/19-harga-per-platform.sql belum dijalankan
     ]);
     const err = [m, r].find((x) => x.error)?.error;
     if (err) setMsg({ type: "err", text: err.message });
     setMenus((m.data ?? []) as MenuItem[]);
     setRecipes((r.data ?? []) as RecipeItem[]);
+    setIngs((i.data ?? []) as Ingredient[]);
+    const map: PriceMap = {};
+    if (!pr.error) {
+      for (const x of (pr.data ?? []) as { menu_item_id: string; channel: Channel; price: number }[]) {
+        (map[x.menu_item_id] ??= {})[x.channel] = Number(x.price);
+      }
+    }
+    setPrices(map);
     setGroups((g.data ?? []) as ProductGroup[]);
     setStock(resolveSharedStock((s.data ?? []) as ProductStockRow[], (g.data ?? []) as ProductGroup[]));
   }
@@ -229,6 +244,8 @@ export default function MenuPage() {
                               key={m.id}
                               menu={m}
                               groups={groups}
+                              hpp={menuHpp(m, menus, recipes, ings, stock, groups)}
+                              savedPrices={prices[m.id] ?? {}}
                               onChanged={(x) => { if (x) setMsg(x); load(); }}
                             />
                           )}
@@ -250,10 +267,14 @@ export default function MenuPage() {
 function MenuEditor({
   menu,
   groups,
+  hpp,
+  savedPrices,
   onChanged,
 }: {
   menu: MenuItem;
   groups: ProductGroup[];
+  hpp: number;
+  savedPrices: Partial<Record<Channel, number>>;
   onChanged: (m: Msg) => void;
 }) {
   const [name, setName] = useState(menu.name);
@@ -320,6 +341,57 @@ function MenuEditor({
       return;
     }
     onChanged({ type: "ok", text: "Menu dihapus." });
+  }
+
+  // Salin menu: buat menu baru dengan data yang sama (dan, kalau dipilih, resep + harga platform).
+  async function copyMenu() {
+    const newName = prompt("Nama menu salinan:", `${menu.name} (salinan)`)?.trim();
+    if (!newName) return;
+    const withRecipe = confirm("Salin juga resep dan harga per platform ke menu baru?\n\nOK = ya, Batal = hanya data menu.");
+    const { data, error } = await supabase
+      .from("menu_items")
+      .insert({
+        name: newName,
+        category: menu.category,
+        price: menu.price,
+        product_group_id: menu.product_group_id,
+        variant_name: menu.variant_name,
+        photo_url: menu.photo_url,
+        stock_unit: menu.stock_unit,
+        min_product_stock: menu.min_product_stock,
+        ...((menu.pack_qty ?? 1) !== 1 ? { pack_qty: menu.pack_qty } : {}),
+      })
+      .select("id")
+      .single();
+    if (error || !data) {
+      onChanged({ type: "err", text: error?.code === "23505" ? "Nama menu sudah ada, pakai nama lain." : error?.message ?? "Gagal menyalin menu." });
+      return;
+    }
+    let note = "";
+    if (withRecipe) {
+      const r = await supabase.from("recipe_items").select("*").eq("menu_item_id", menu.id);
+      if (!r.error && (r.data ?? []).length > 0) {
+        // semua baris berasal dari tabel yang sama sehingga kuncinya seragam
+        const rows = (r.data as Record<string, unknown>[]).map((x) => {
+          const { id: _id, ...rest } = x;
+          void _id;
+          return { ...rest, menu_item_id: data.id };
+        });
+        const ins = await supabase.from("recipe_items").insert(rows);
+        if (ins.error) note += ` Resep gagal disalin: ${ins.error.message}.`;
+      }
+      const pr = await supabase.from("menu_prices").select("channel, price").eq("menu_item_id", menu.id);
+      if (!pr.error && (pr.data ?? []).length > 0) {
+        const ins = await supabase
+          .from("menu_prices")
+          .insert((pr.data as { channel: Channel; price: number }[]).map((x) => ({ ...x, menu_item_id: data.id })));
+        if (ins.error) note += ` Harga platform gagal disalin: ${ins.error.message}.`;
+      }
+    }
+    onChanged({
+      type: note ? "err" : "ok",
+      text: `Menu "${newName}" dibuat dari salinan.${note || " Stok produksinya mulai dari nol; catat produksinya di Stok › Produksi."}`,
+    });
   }
 
   async function toggleActive() {
@@ -400,6 +472,10 @@ function MenuEditor({
           <p className="col-span-2 text-xs text-stone-500">Diberi tanda "stok menipis" kalau stok produk turun sampai atau di bawah angka minimum.</p>
         </div>
       )}
+      <PlatformPrices key={`${menu.id}-${JSON.stringify(savedPrices)}`} menu={menu} hpp={hpp} saved={savedPrices} onChanged={onChanged} />
+      <button className={`${btnGhostCls} w-full`} onClick={copyMenu}>
+        Salin menu ini
+      </button>
       <button className={`${btnGhostCls} w-full`} onClick={toggleActive}>
         {menu.is_active ? "Sembunyikan dari halaman Jual" : "Tampilkan di halaman Jual"}
       </button>
