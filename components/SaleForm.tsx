@@ -408,7 +408,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                           stock={stock}
                           online={online}
                           channel={channel}
-                      prices={prices}
+                          prices={prices}
                           change={change}
                           setPrice={setPrice}
                         />
@@ -422,7 +422,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
         </section>
       ))}
 
-      <Card className="sticky bottom-20 z-10 space-y-3 border-stone-300 shadow-lg">
+      <Card className="sticky bottom-20 z-10 max-h-[70vh] space-y-3 overflow-y-auto border-stone-300 shadow-lg">
         {overStockItems.length > 0 && (
           <p className="text-xs font-medium text-red-700">
             Melebihi stok produk: {overStockItems.join(", ")}. Tetap bisa disimpan, tapi produksi lagi dulu kalau bisa.
@@ -435,31 +435,41 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
               {manageTypes ? "Selesai" : "Atur jenis diskon"}
             </button>
           </div>
-          {discRows.map((r) => (
-            <div key={r.key} className="flex items-center gap-2">
-              <input
-                className={`${inputCls} min-w-0 flex-1`}
-                value={r.label}
-                list="daftar-jenis-diskon"
-                onChange={(e) => setDiscRows((rows) => rows.map((x) => (x.key === r.key ? { ...x, label: e.target.value } : x)))}
-                placeholder="Nama diskon"
-              />
-              <input
-                type="number"
-                inputMode="numeric"
-                className={`${inputCls} w-28 shrink-0`}
-                value={r.amount}
-                onChange={(e) => setDiscRows((rows) => rows.map((x) => (x.key === r.key ? { ...x, amount: e.target.value } : x)))}
-                placeholder="Rp"
-              />
-              <button
-                type="button"
-                className="h-11 w-10 shrink-0 rounded-lg border border-stone-300 text-red-700"
-                onClick={() => setDiscRows((rows) => rows.filter((x) => x.key !== r.key))}
-                aria-label="Hapus diskon ini"
-              >
-                ✕
-              </button>
+          {discRows.map((r, idx) => (
+            <div key={r.key} className="space-y-2 rounded-xl border border-stone-200 bg-stone-50 p-2.5">
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 text-xs font-semibold text-stone-500">Diskon {idx + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <input
+                    className={inputCls}
+                    value={r.label}
+                    list="daftar-jenis-diskon"
+                    onChange={(e) => setDiscRows((rows) => rows.map((x) => (x.key === r.key ? { ...x, label: e.target.value } : x)))}
+                    placeholder="Nama diskon (mis. Diskon ongkir)"
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="h-11 w-11 shrink-0 rounded-lg border border-stone-300 bg-white text-red-700"
+                  onClick={() => setDiscRows((rows) => rows.filter((x) => x.key !== r.key))}
+                  aria-label="Hapus diskon ini"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 text-sm text-stone-600">Potongan Rp</span>
+                <div className="min-w-0 flex-1">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    className={`${inputCls} text-right font-semibold`}
+                    value={r.amount}
+                    onChange={(e) => setDiscRows((rows) => rows.map((x) => (x.key === r.key ? { ...x, amount: e.target.value } : x)))}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
             </div>
           ))}
           <datalist id="daftar-jenis-diskon">
@@ -519,8 +529,24 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
           </div>
         )}
         <div className="flex items-end justify-between gap-3">
-          <div className="min-w-0 text-sm text-stone-500">
+          <div className="min-w-0 flex-1 text-sm text-stone-500">
             {portions} item, subtotal {rupiah(total)}
+            {(discLines.length > 0 || (Number(fee) || 0) > 0) && (
+              <div className="mt-1 space-y-0.5 text-xs">
+                {discLines.map((d, i) => (
+                  <div key={i} className="flex justify-between gap-3 text-red-700">
+                    <span className="truncate">{d.label}</span>
+                    <span className="shrink-0 tabular-nums">−{rupiah(d.amount)}</span>
+                  </div>
+                ))}
+                {(Number(fee) || 0) > 0 && (
+                  <div className="flex justify-between gap-3 text-red-700">
+                    <span>Komisi + promo platform</span>
+                    <span className="shrink-0 tabular-nums">−{rupiah(Number(fee))}</span>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="text-lg font-bold text-stone-900">{rupiah(net)}</div>
           </div>
           <div className="flex shrink-0 gap-2">

@@ -502,12 +502,18 @@ function ArrangeList({ entries, ready, onDone }: { entries: ProductionEntry[]; r
     let groupId = target.groupId;
     if (!groupId) {
       // target menu tunggal: buat produk dasar baru dari namanya, lalu masukkan menu itu juga
-      const created = await supabase.from("product_groups").insert({ name: target.label }).select("id").single();
-      if (created.error || !created.data) {
-        setBusy(false);
-        return fail(created.error ?? { message: "Gagal membuat produk dasar." });
+      // (nama produk dasar harus unik: kalau sudah ada, mis. sisa yang kosong, pakai yang itu)
+      const found = await supabase.from("product_groups").select("id").ilike("name", target.label).maybeSingle();
+      if (found.data?.id) {
+        groupId = found.data.id as string;
+      } else {
+        const created = await supabase.from("product_groups").insert({ name: target.label }).select("id").single();
+        if (created.error || !created.data) {
+          setBusy(false);
+          return fail(created.error ?? { message: "Gagal membuat produk dasar." });
+        }
+        groupId = created.data.id as string;
       }
-      groupId = created.data.id as string;
       const t = target.rows[0];
       const up = await supabase
         .from("menu_items")
