@@ -128,7 +128,7 @@ export default function RecipesPage() {
                               </div>
                             </div>
                             <div className="shrink-0 text-right text-sm">
-                              {count > 0 || tracked ? (
+                              {count > 0 || holderLabel ? (
                                 <>
                                   <div className="font-semibold tabular-nums">HPP {rupiah(hpp)}</div>
                                   <div className="text-brand-800">margin {pct(m.price - hpp, m.price)}</div>
@@ -137,7 +137,12 @@ export default function RecipesPage() {
                                   </div>
                                 </>
                               ) : (
-                                <div className="font-medium text-amber-700">Resep kosong</div>
+                                <>
+                                  <div className="font-medium text-amber-700">Resep kosong</div>
+                                  {tracked && hpp > 0 && (
+                                    <div className="text-xs text-stone-400">sisa HPP stok {rupiah(hpp)}</div>
+                                  )}
+                                </>
                               )}
                             </div>
                           </button>
