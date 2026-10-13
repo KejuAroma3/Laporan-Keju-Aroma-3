@@ -286,3 +286,11 @@ kelompok "Tanpa kategori" di urutan paling akhir. Butuh `supabase/11-kategori-ba
   Penjualan lama tidak berubah. Butuh `supabase/19-harga-per-platform.sql`.
 - Tombol **Salin menu ini** membuat menu baru dari menu yang dibuka (opsional beserta resep dan harga platform).
   Stok produksi menu salinan mulai dari nol.
+
+## Impor / ekspor menu (Excel)
+
+Di **Lainnya › Menu › Impor / ekspor**: unduh seluruh menu sebagai CSV (nama, kategori, produk dasar, varian,
+isi per penjualan, harga Offline/GoFood/GrabFood/ShopeeFood, tampil di jual, dan HPP sebagai patokan saja),
+ubah di Excel, lalu unggah kembali. Pratinjau menunjukkan tiap baris sebagai baru/ubah/sama beserta perubahannya
+sebelum diterapkan. Menu dicocokkan lewat nama; kolom kosong atau dihapus tidak mengubah apa pun; isi 0 di kolom
+harga platform untuk menghapus harga khusus platform itu. Resep, foto, dan stok tidak ikut. Harga platform butuh SQL 19.

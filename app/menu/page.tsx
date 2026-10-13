@@ -134,7 +134,7 @@ export default function MenuPage() {
           Menu
         </PageTitle>
         <Link href="/menu/import" className={`${btnGhostCls} h-10 shrink-0 px-3 text-sm`}>
-          Impor massal
+          Impor / ekspor
         </Link>
       </div>
       <Notice msg={msg} />
