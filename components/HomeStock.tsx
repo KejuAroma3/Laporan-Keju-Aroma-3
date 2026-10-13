@@ -4,28 +4,24 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { fmt } from "@/lib/format";
-import { isSupplyCategory } from "@/lib/group";
+import { groupByCategory, isSupplyCategory } from "@/lib/group";
 import { buildProductionEntries, visibleEntries } from "@/lib/production";
 import type { ProductGroup, ProductStockRow, StockRow } from "@/lib/types";
 import { Card, Empty, ScrollList } from "@/components/ui";
 
-type SectionId = "produksi" | "kemasan" | "bahan";
-type Prefs = { sections: Record<SectionId, boolean>; onlyLow: boolean };
+// Blok stok: "produksi" plus satu blok per kategori barang (mis. Bahan Jadi, Bahan kemasan, Bahan Pelengkap).
+// Kunci blok kategori = "kat:<nama>". Bawaan: kategori selain Bahan baku tampil, Bahan baku disembunyikan.
+type Prefs = { sections: Record<string, boolean>; onlyLow: boolean };
 
-const DEFAULTS: Prefs = { sections: { produksi: true, kemasan: true, bahan: false }, onlyLow: false };
-const KEY = "beranda-stok-tampilan";
-
-const SECTION_LABEL: Record<SectionId, string> = {
-  produksi: "Stok produksi",
-  kemasan: "Stok kemasan",
-  bahan: "Stok bahan baku",
-};
-const SECTION_LINK: Record<SectionId, string> = { produksi: "/production", kemasan: "/packaging", bahan: "/ingredients" };
+const DEFAULTS: Prefs = { sections: { produksi: true }, onlyLow: false };
+const KEY = "beranda-stok-tampilan-2";
+const NO_CAT = "Tanpa kategori";
+const catKey = (c: string) => `kat:${c}`;
 
 type Item = { key: string; name: string; value: string; unit: string; low: boolean; none?: boolean };
 
 // Ringkasan stok di Beranda. Blok mana yang tampil dan apakah semua stok atau hanya yang menipis
-// bisa dipilih; pilihan disimpan di perangkat ini. Staf melihat stok produksi dan kemasan, tanpa bahan baku.
+// bisa dipilih; pilihan disimpan di perangkat ini. Staf melihat stok produksi dan barang non-bahan baku.
 export default function HomeStock({ isOwner }: { isOwner: boolean }) {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULTS);
   const [editing, setEditing] = useState(false);
@@ -40,7 +36,7 @@ export default function HomeStock({ isOwner }: { isOwner: boolean }) {
       if (raw) {
         const p = JSON.parse(raw) as Partial<Prefs>;
         setPrefs({
-          sections: { ...DEFAULTS.sections, ...(p.sections ?? {}) },
+          sections: { ...DEFAULTS.sections, ...(p.sections && typeof p.sections === "object" ? p.sections : {}) },
           onlyLow: typeof p.onlyLow === "boolean" ? p.onlyLow : DEFAULTS.onlyLow,
         });
       }
@@ -67,8 +63,6 @@ export default function HomeStock({ isOwner }: { isOwner: boolean }) {
     })();
   }, [isOwner]);
 
-  const available: SectionId[] = isOwner ? ["produksi", "kemasan", "bahan"] : ["produksi", "kemasan"];
-
   const lists = useMemo(() => {
     const production: Item[] = visibleEntries(buildProductionEntries(prod, groups)).map((e) => {
       const tracked = e.rows.filter((r) => r.track_stock);
@@ -83,14 +77,23 @@ export default function HomeStock({ isOwner }: { isOwner: boolean }) {
     });
     const toItem = (r: StockRow): Item => ({ key: r.id, name: r.name, value: fmt(r.on_hand), unit: r.unit, low: r.is_low });
     const sortLow = (a: Item, b: Item) => Number(b.low) - Number(a.low);
-    return {
-      produksi: production.sort(sortLow), // sort stabil: urutan dari Atur list tetap dalam tiap kelompok
-      kemasan: ings.filter((r) => isSupplyCategory(r.category)).map(toItem).sort(sortLow),
-      bahan: isOwner ? ings.filter((r) => !isSupplyCategory(r.category)).map(toItem).sort(sortLow) : [],
-    } as Record<SectionId, Item[]>;
+    // staf tidak melihat bahan baku (kategori kosong atau "Bahan baku")
+    const visibleIngs = ings.filter((r) => isOwner || isSupplyCategory(r.category));
+    const byCat = new Map<string, Item[]>();
+    for (const [c, rows] of groupByCategory(visibleIngs, (r) => r.category)) byCat.set(c, rows.map(toItem).sort(sortLow));
+    return { production: production.sort(sortLow), byCat };
   }, [prod, groups, ings, isOwner]);
 
-  const shown = available.filter((s) => prefs.sections[s]);
+  // semua blok yang bisa dipilih: stok produksi + tiap kategori
+  const blocks: { id: string; label: string; items: Item[]; link: string; defaultOn: boolean }[] = [
+    { id: "produksi", label: "Stok produksi", items: lists.production, link: "/production", defaultOn: true },
+    ...Array.from(lists.byCat.entries()).map(([c, items]) => {
+      const supply = isSupplyCategory(c === NO_CAT ? null : c);
+      return { id: catKey(c), label: c, items, link: supply ? "/packaging" : "/ingredients", defaultOn: supply };
+    }),
+  ];
+  const isOn = (b: { id: string; defaultOn: boolean }) => prefs.sections[b.id] ?? b.defaultOn;
+  const shown = blocks.filter(isOn);
 
   return (
     <div className="space-y-4">
@@ -104,15 +107,16 @@ export default function HomeStock({ isOwner }: { isOwner: boolean }) {
       {editing && (
         <Card className="space-y-3">
           <div className="text-sm font-semibold">Stok yang ditampilkan di Beranda</div>
-          {available.map((s) => (
-            <label key={s} className="flex items-center gap-2 text-sm">
+          {blocks.map((b) => (
+            <label key={b.id} className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
                 className="h-5 w-5"
-                checked={prefs.sections[s]}
-                onChange={(e) => update({ ...prefs, sections: { ...prefs.sections, [s]: e.target.checked } })}
+                checked={isOn(b)}
+                onChange={(e) => update({ ...prefs, sections: { ...prefs.sections, [b.id]: e.target.checked } })}
               />
-              {SECTION_LABEL[s]}
+              {b.label}
+              <span className="text-xs text-stone-400">({b.items.length})</span>
             </label>
           ))}
           <div className="border-t border-stone-100 pt-3">
@@ -143,14 +147,14 @@ export default function HomeStock({ isOwner }: { isOwner: boolean }) {
           <Empty>Tidak ada blok stok yang dipilih. Ketuk &quot;Atur tampilan&quot; untuk menampilkannya.</Empty>
         </Card>
       ) : (
-        shown.map((s) => {
-          const all = lists[s];
+        shown.map((b) => {
+          const all = b.items;
           const lowCount = all.filter((x) => x.low).length;
           const items = prefs.onlyLow ? all.filter((x) => x.low) : all;
           return (
-            <Card key={s}>
+            <Card key={b.id}>
               <div className="mb-2 flex items-baseline justify-between gap-3">
-                <h3 className="font-semibold">{SECTION_LABEL[s]}</h3>
+                <h3 className="font-semibold">{b.label}</h3>
                 <span className={`shrink-0 text-xs ${lowCount > 0 ? "font-semibold text-red-700" : "text-stone-500"}`}>
                   {lowCount > 0 ? `${lowCount} menipis` : "aman"}
                 </span>
@@ -158,7 +162,7 @@ export default function HomeStock({ isOwner }: { isOwner: boolean }) {
               {items.length === 0 ? (
                 <Empty>
                   {all.length === 0
-                    ? s === "produksi"
+                    ? b.id === "produksi"
                       ? "Belum ada menu."
                       : "Belum ada barang."
                     : "Semua masih di atas batas minimum."}
@@ -177,8 +181,8 @@ export default function HomeStock({ isOwner }: { isOwner: boolean }) {
                   ))}
                 </ScrollList>
               )}
-              <Link href={SECTION_LINK[s]} className="mt-2 block text-sm font-medium text-brand-800 underline">
-                Buka {SECTION_LABEL[s].toLowerCase()}
+              <Link href={b.link} className="mt-2 block text-sm font-medium text-brand-800 underline">
+                Buka {b.label.toLowerCase()}
               </Link>
             </Card>
           );

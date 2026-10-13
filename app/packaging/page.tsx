@@ -67,7 +67,7 @@ export default function PackagingPage() {
           <p className="py-6 text-center text-sm text-stone-500">Memuat…</p>
         ) : rows.length === 0 && tab !== "belanja" ? (
           <Empty>
-            Belum ada barang kemasan. Tambahkan di <Link href="/ingredients" className="underline">Lainnya › Bahan baku</Link> dengan
+            Belum ada barang di kategori ini. Tambahkan di <Link href="/ingredients" className="underline">Lainnya › Bahan baku</Link> dengan
             kategori &quot;Bahan kemasan&quot; atau &quot;Bahan habis pakai&quot;.
           </Empty>
         ) : (
@@ -113,7 +113,7 @@ function SupplyList({ rows, usedIn, showValue }: { rows: StockRow[]; usedIn: Rec
         <Card><div className="text-xs text-stone-500">Habis</div><div className={`text-lg font-bold tabular-nums ${emptyCount ? "text-red-700" : ""}`}>{emptyCount}</div></Card>
       </div>
       {showValue && <Card className="mb-3">
-        <div className="text-sm text-stone-500">Nilai stok kemasan{cat === ALL ? "" : ` (${cat.toLowerCase()})`}</div>
+        <div className="text-sm text-stone-500">Nilai stok belanja{cat === ALL ? "" : ` (${cat.toLowerCase()})`}</div>
         <div className="text-xl font-bold tabular-nums">{rupiah(value)}</div>
       </Card>}
 

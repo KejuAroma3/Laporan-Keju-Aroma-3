@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 // Pindah antara dua halaman stok di menu utama: produksi (produk jadi) dan kemasan (perlengkapan).
 const ITEMS = [
   { href: "/production", label: "Stok produksi" },
-  { href: "/packaging", label: "Stok kemasan" },
+  { href: "/packaging", label: "Stok belanja" },
 ];
 
 export default function StockSwitch() {
