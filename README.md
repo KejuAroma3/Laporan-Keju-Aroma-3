@@ -113,6 +113,7 @@ dan "Hampers Keju Aroma Original isi 15". Butuh `supabase/15-isi-per-penjualan.s
 - Resep selalu dihitung **per 1 pcs**. Isi berlaku untuk semua menu, termasuk yang belum pernah
   diproduksi (dibuat saat dipesan): bahan terpotong sebanyak resep x isi. Bahan yang dicentang
   "Dipakai sekali per penjualan" (box, kantong) tidak dikali isi. Butuh `supabase/18-isi-berlaku-semua-menu.sql`.
+- Varian yang stoknya disatukan (di Atur list produksi): di Resep, stok & HPP-nya mengikuti menu pemegang stok ("ikut <nama>"). Resep utama dikelola di menu pemegang stok; di varian hanya bisa menambah bahan "sekali per penjualan". HPP yang tampil tanpa resep berasal dari HPP stok pemegang stok.
   Di daftar Resep, keterangan "dari produksi" berarti HPP dari stok produksi, "dari resep" berarti
   dihitung dari resep (menu belum diproduksi atau belum disatukan stoknya), dan "isi N" muncul bila isi bukan 1.
 
@@ -146,6 +147,12 @@ ongkir". Butuh `supabase/16-rincian-diskon.sql`.
   masuk HPP penjualan itu. Tanpa centang, bahan dipotong saat produksi dan ikut HPP per pcs
   (cocok untuk plastik/label per pcs). Butuh `supabase/17-kemasan-per-penjualan.sql`.
 - Penjualan lama tidak berubah. Resep yang sudah ada tetap dianggap dipakai saat produksi.
+- **Dua angka HPP di Resep** (untuk menu yang diproduksi): "HPP tercatat" (angka di daftar dan yang
+  dipakai di penjualan) dihitung saat produksi dari harga bahan waktu itu, dirata-rata dengan stok yang
+  masih ada (bahan yang belum pernah dibeli dihitung Rp0). "Perkiraan dari resep sekarang" memakai resep dan
+  harga bahan hari ini. Kalau selisihnya lebih dari 2%, muncul tombol "Samakan HPP stok dengan resep
+  sekarang" untuk menyetel HPP stok sesuai resep sekarang (berlaku untuk penjualan berikutnya; penjualan
+  yang sudah tercatat tidak berubah).
 
 ## Stok di Beranda
 Bagian "Stok" di bawah Beranda menampilkan **Stok produksi**, **Stok kemasan**, dan **Stok bahan baku**.

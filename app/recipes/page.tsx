@@ -8,7 +8,7 @@ import { groupByCategory, groupByProduct } from "@/lib/group";
 import type { Ingredient, MenuItem, ProductGroup, ProductStockRow, RecipeItem } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, btnCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
-import { resolveSharedStock } from "@/lib/production";
+import { resolveSharedStock, stockHolderId } from "@/lib/production";
 import { perUnitQty, recipeCostBreakdown } from "@/lib/recipecost";
 import OwnerOnly from "@/components/OwnerOnly";
 
@@ -109,6 +109,9 @@ export default function RecipesPage() {
                       const tracked = st?.track_stock ?? false;
                       const hpp = tracked ? (st?.avg_product_cost ?? m.avg_product_cost) * (m.pack_qty ?? 1) + saleCost(m.id) : cost(m.id);
                       const otherVariants = bucket.items.filter((x) => x.id !== m.id);
+                      // Varian dari produk dasar yang stoknya disatukan: stok dan HPP ikut menu pemegang stok.
+                      const holderMenu = menus.find((x) => x.id === stockHolderId(m, groups));
+                      const holderLabel = holderMenu && holderMenu.id !== m.id ? holderMenu.variant_name || holderMenu.name : null;
                       return (
                         <Card key={m.id} className={m.is_active ? "" : "opacity-60"}>
                           <button className="flex w-full items-center gap-3 text-left" onClick={() => setOpen(open === m.id ? null : m.id)}>
@@ -117,7 +120,11 @@ export default function RecipesPage() {
                               <div className="truncate font-semibold">{m.variant_name || m.name}</div>
                               <div className="truncate text-sm text-stone-500">
                                 {m.variant_name ? `${m.name} · ` : ""}
-                                {count > 0 ? `${count} bahan` : tracked ? "Memakai stok & HPP produk dasar" : "Belum ada bahan"}
+                                {holderLabel
+                                  ? `Stok & HPP mengikuti "${holderLabel}"${count > 0 ? `, +${count} bahan per penjualan` : ""}`
+                                  : count > 0
+                                    ? `${count} bahan`
+                                    : "Belum ada bahan"}
                               </div>
                             </div>
                             <div className="shrink-0 text-right text-sm">
@@ -126,7 +133,7 @@ export default function RecipesPage() {
                                   <div className="font-semibold tabular-nums">HPP {rupiah(hpp)}</div>
                                   <div className="text-brand-800">margin {pct(m.price - hpp, m.price)}</div>
                                   <div className="text-xs text-stone-400">
-                                    {tracked ? "dari produksi" : "dari resep"}{(m.pack_qty ?? 1) !== 1 ? `, isi ${m.pack_qty}` : ""}
+                                    {holderLabel ? `ikut ${holderLabel}` : tracked ? "dari produksi" : "dari resep"}{(m.pack_qty ?? 1) !== 1 ? `, isi ${m.pack_qty}` : ""}
                                   </div>
                                 </>
                               ) : (
@@ -140,6 +147,9 @@ export default function RecipesPage() {
                               menu={m}
                               ings={ings}
                               tracked={tracked}
+                              stockCost={tracked ? (st?.avg_product_cost ?? m.avg_product_cost) : null}
+                              isHolder={stockHolderId(m, groups) === m.id}
+                              holderLabel={holderLabel}
                               recipe={recipes.filter((r) => r.menu_item_id === m.id)}
                               otherVariants={otherVariants}
                               recipesByMenu={recipes}
@@ -165,6 +175,9 @@ function RecipeEditor({
   menu,
   ings,
   tracked,
+  stockCost,
+  isHolder,
+  holderLabel,
   recipe,
   otherVariants,
   recipesByMenu,
@@ -173,6 +186,10 @@ function RecipeEditor({
   menu: MenuItem;
   ings: Ingredient[];
   tracked: boolean;
+  stockCost: number | null; // HPP per pcs yang tercatat di stok produksi (null kalau menu belum diproduksi)
+  isHolder: boolean; // true kalau stok produksi tersimpan di menu ini sendiri
+  holderLabel: string | null; // diisi kalau stok menu ini ikut menu lain (varian disatukan)
+  
   recipe: RecipeItem[];
   otherVariants: MenuItem[];
   recipesByMenu: RecipeItem[];
@@ -184,6 +201,34 @@ function RecipeEditor({
   const [forPcs, setForPcs] = useState("");
   const [perSale, setPerSale] = useState(false);
   const sel = ings.find((i) => i.id === ing);
+  const member = holderLabel !== null;
+  // Biaya bahan produksi per 1 pcs dari resep dan harga bahan SAAT INI (tanpa bahan "sekali per penjualan").
+  const prodPerUnit = recipe.reduce(
+    (sum, r) => sum + (r.per_sale ? 0 : r.qty * (ings.find((x) => x.id === r.ingredient_id)?.avg_cost ?? 0)),
+    0
+  );
+  const salePart = recipe.reduce(
+    (sum, r) => sum + (r.per_sale ? r.qty * (ings.find((x) => x.id === r.ingredient_id)?.avg_cost ?? 0) : 0),
+    0
+  );
+  const recordedTotal = stockCost !== null ? stockCost * (menu.pack_qty ?? 1) + salePart : null;
+
+  async function syncCost() {
+    const per = Math.round(prodPerUnit * 10000) / 10000;
+    if (
+      !confirm(
+        `Samakan HPP stok "${menu.name}" dengan resep sekarang?\n\nHPP per ${menu.stock_unit} jadi ${rupiah(per)} (sebelumnya ${rupiah(stockCost ?? 0)}). Berlaku untuk penjualan berikutnya dan nilai stok. Penjualan yang sudah tercatat tidak berubah.`
+      )
+    )
+      return;
+    const { error } = await supabase.from("menu_items").update({ avg_product_cost: per }).eq("id", menu.id);
+    onChanged(
+      error
+        ? { type: "err", text: error.message }
+        : { type: "ok", text: `HPP stok disamakan dengan resep: ${rupiah(per)} per ${menu.stock_unit}.` }
+    );
+  }
+
   const effQty = Number(qty) > 0 ? perUnitQty(Number(qty), Number(forPcs) || 0) : 0;
   const cost = recipeCostBreakdown(
     recipe.map((r) => {
@@ -192,6 +237,7 @@ function RecipeEditor({
     }),
     menu.pack_qty ?? 1
   );
+  const costGap = recordedTotal !== null && cost.total > 0 ? Math.abs(recordedTotal - cost.total) / cost.total : 0;
 
   async function addLine() {
     if (!ing || !(Number(qty) > 0)) {
@@ -200,7 +246,7 @@ function RecipeEditor({
     }
     const existing = recipe.find((r) => r.ingredient_id === ing);
     // per_sale hanya dikirim bila perlu, supaya tetap jalan sebelum supabase/17-kemasan-per-penjualan.sql dijalankan
-    const flag = perSale || existing?.per_sale ? { per_sale: perSale } : {};
+    const flag = member ? { per_sale: true } : perSale || existing?.per_sale ? { per_sale: perSale } : {};
     const { error } = await supabase
       .from("recipe_items")
       .upsert({ menu_item_id: menu.id, ingredient_id: ing, qty: effQty, ...flag }, { onConflict: "menu_item_id,ingredient_id" });
@@ -258,10 +304,22 @@ function RecipeEditor({
       <p className="text-xs text-stone-500">
         Nama, harga, dan foto menu diatur di <Link href="/menu" className="underline">Lainnya › Menu</Link>.
       </p>
+      {member && (
+        <div className="space-y-1 rounded-xl bg-brand-50 p-3 text-sm text-brand-900">
+          <div className="font-semibold">Stok dan HPP menu ini mengikuti &quot;{holderLabel}&quot;</div>
+          <p className="text-xs">
+            Variannya disatukan (Stok › Atur list), jadi menu ini tidak punya resep produksi sendiri: bahan produksi
+            diatur di resep &quot;{holderLabel}&quot;. HPP-nya = HPP per {menu.stock_unit} &quot;{holderLabel}&quot;
+            {stockCost !== null ? ` (${rupiah(stockCost)})` : ""} x isi {menu.pack_qty ?? 1}, ditambah bahan sekali
+            per penjualan di bawah (box, label, plastik).
+            {(menu.pack_qty ?? 1) === 1 ? " Kalau satu penjualan menu ini berisi lebih dari 1, ubah Isi per penjualan di Lainnya › Menu." : ""}
+          </p>
+        </div>
+      )}
       <div>
-        <h3 className="mb-2 font-semibold">Resep per 1 {menu.stock_unit}</h3>
+        <h3 className="mb-2 font-semibold">{member ? "Bahan sekali per penjualan" : `Resep per 1 ${menu.stock_unit}`}</h3>
         {recipe.length === 0 ? (
-          <p className="text-sm text-stone-500">Belum ada bahan di resep ini.</p>
+          <p className="text-sm text-stone-500">{member ? "Belum ada bahan tambahan per penjualan." : "Belum ada bahan di resep ini."}</p>
         ) : (
           <ul className="divide-y divide-stone-100">
             {recipe.map((r) => {
@@ -273,6 +331,9 @@ function RecipeEditor({
                     <span className="text-stone-500"> ({rupiah(r.qty * (i?.avg_cost ?? 0))})</span>
                     {i?.category && <span className="block text-xs text-stone-400">{i.category}</span>}
                     {r.per_sale && <span className="block text-xs font-medium text-brand-800">Sekali per penjualan (tidak dikali isi)</span>}
+                    {member && !r.per_sale && (
+                      <span className="block text-xs font-medium text-amber-700">Tidak dipakai: stok menu ini ikut &quot;{holderLabel}&quot;. Hapus saja.</span>
+                    )}
                   </span>
                   <button className="h-10 px-3 font-medium text-red-700" onClick={() => removeLine(r.ingredient_id)}>
                     Hapus
@@ -284,28 +345,59 @@ function RecipeEditor({
         )}
       </div>
 
-      {recipe.length > 0 && (
-        <div className="rounded-xl bg-stone-50 p-3 text-sm">
-          <div className="mb-1 flex items-baseline justify-between gap-3 font-semibold">
-            <span>Perkiraan HPP per penjualan</span>
-            <span className="tabular-nums">{rupiah(cost.total)}</span>
-          </div>
-          {cost.byCategory.map(([cat, amount]) => (
-            <div key={cat} className="flex justify-between gap-3 text-stone-600">
-              <span>{cat}</span>
-              <span className="tabular-nums">{rupiah(amount)}</span>
+      {(recipe.length > 0 || member) && (
+        <div className="space-y-3 rounded-xl bg-stone-50 p-3 text-sm">
+          {recordedTotal !== null && (
+            <div>
+              <div className="flex items-baseline justify-between gap-3 font-semibold">
+                <span>{member ? `HPP menu ini (mengikuti ${holderLabel})` : "HPP tercatat (dipakai di penjualan)"}</span>
+                <span className="tabular-nums">{rupiah(recordedTotal)}</span>
+              </div>
+              <p className="text-xs text-stone-500">
+                {rupiah(stockCost ?? 0)} per {menu.stock_unit} dari stok produksi
+                {(menu.pack_qty ?? 1) !== 1 ? ` x isi ${menu.pack_qty}` : ""}
+                {salePart > 0 ? `, ditambah ${rupiah(salePart)} bahan sekali per penjualan` : ""}.
+              </p>
             </div>
-          ))}
-          {(menu.pack_qty ?? 1) !== 1 && (
-            <p className="mt-1 text-xs text-stone-500">
-              Bahan sudah dikali isi {menu.pack_qty} per penjualan (resep dihitung per 1 {menu.stock_unit}).
-              Bahan yang ditandai &quot;sekali per penjualan&quot; tidak dikali.
-            </p>
+          )}
+          {!member && <div>
+            <div className="mb-1 flex items-baseline justify-between gap-3 font-semibold">
+              <span>Perkiraan dari resep sekarang</span>
+              <span className="tabular-nums">{rupiah(cost.total)}</span>
+            </div>
+            {cost.byCategory.map(([cat, amount]) => (
+              <div key={cat} className="flex justify-between gap-3 text-stone-600">
+                <span>{cat}</span>
+                <span className="tabular-nums">{rupiah(amount)}</span>
+              </div>
+            ))}
+            {(menu.pack_qty ?? 1) !== 1 && (
+              <p className="mt-1 text-xs text-stone-500">
+                Bahan sudah dikali isi {menu.pack_qty} per penjualan (resep dihitung per 1 {menu.stock_unit}).
+                Bahan yang ditandai &quot;sekali per penjualan&quot; tidak dikali.
+              </p>
+            )}
+          </div>}
+          {!member && recordedTotal !== null && costGap > 0.02 && (
+            <div className="space-y-2 rounded-lg bg-amber-50 p-3 text-amber-900">
+              <p className="text-xs">
+                Dua angka ini beda karena HPP tercatat dihitung saat produksi (harga bahan dan resep waktu itu,
+                dirata-rata dengan stok yang masih ada, dan bahan yang belum pernah dibeli dihitung Rp0),
+                sedangkan perkiraan memakai resep dan harga bahan sekarang.
+              </p>
+              {isHolder ? (
+                <button className={`${btnCls} w-full`} onClick={syncCost}>
+                  Samakan HPP stok dengan resep sekarang
+                </button>
+              ) : (
+                <p className="text-xs font-medium">Stok varian ini disatukan, samakan HPP-nya dari resep varian pemegang stok.</p>
+              )}
+            </div>
           )}
         </div>
       )}
 
-      {otherVariants.length > 0 && recipe.length === 0 && (
+      {!member && otherVariants.length > 0 && recipe.length === 0 && (
         <div className="space-y-2 rounded-xl bg-amber-50 p-3">
           <div className="text-sm font-semibold text-amber-900">Salin resep dari varian lain</div>
           <p className="text-xs text-amber-900">
@@ -346,7 +438,7 @@ function RecipeEditor({
             />
           </div>
           <div>
-            <Label>Untuk berapa {perSale ? "penjualan" : menu.stock_unit}</Label>
+            <Label>Untuk berapa {perSale || member ? "penjualan" : menu.stock_unit}</Label>
             <input
               type="number"
               inputMode="decimal"
@@ -366,7 +458,12 @@ function RecipeEditor({
             Masuk resep: {fmt(Math.round(effQty * 10000) / 10000)} {sel.unit}, biaya {rupiah(effQty * sel.avg_cost)}
           </div>
         )}
-        <label className="flex items-start gap-2 text-sm">
+        {member ? (
+          <p className="text-xs text-stone-500">
+            Bahan di sini selalu dihitung sekali per penjualan (tidak dikali isi), misalnya box atau stiker untuk menu ini.
+          </p>
+        ) : (
+          <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0" checked={perSale} onChange={(e) => setPerSale(e.target.checked)} />
           <span>
             Dipakai sekali per penjualan{tracked ? " (bukan saat produksi)" : ""}
@@ -377,13 +474,14 @@ function RecipeEditor({
             </span>
           </span>
         </label>
+        )}
         {!tracked && (
           <p className="text-xs text-stone-500">
             Menu ini dibuat saat dipesan: bahan dipotong tiap kali terjual, sebanyak resep per {menu.stock_unit} x isi
             {(menu.pack_qty ?? 1) !== 1 ? ` (${menu.pack_qty})` : ""}.
           </p>
         )}
-        <button className={`${btnCls} w-full`} onClick={addLine}>Tambah ke resep</button>
+        <button className={`${btnCls} w-full`} onClick={addLine}>{member ? "Tambah bahan per penjualan" : "Tambah ke resep"}</button>
       </div>
     </div>
   );
