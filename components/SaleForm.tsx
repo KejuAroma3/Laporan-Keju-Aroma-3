@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { CHANNEL_LABEL, rangeIso, rupiah, todayJkt } from "@/lib/format";
-import { groupByProduct } from "@/lib/group";
+import { buildSellCats } from "@/lib/sellorder";
 import { resolveSharedStock, stockHolderId, stockNeeded } from "@/lib/production";
 import type { Channel, MenuItem, ProductGroup, ProductStockRow } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
@@ -58,6 +58,9 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [lastSavedId, setLastSavedId] = useState<string | null>(null);
   const [customer, setCustomer] = useState("");
+  const [step, setStep] = useState<"pilih" | "ringkas">("pilih");
+  const [noDisc, setNoDisc] = useState(false); // dicentang: memang tidak ada diskon
+  const [noFee, setNoFee] = useState(false); // dicentang: memang tidak ada komisi/promo
   const [custIndex, setCustIndex] = useState<Map<string, CustomerStat>>(new Map());
   const [custNames, setCustNames] = useState<Record<string, string>>({}); // sale_id -> nama pelanggan
   const [custom, setCustom] = useState<{ editId: string | null } | null>(null); // form Pesanan Khusus terbuka
@@ -186,22 +189,19 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const discountTotal = sumDiscounts(discLines);
   const net = total - discountTotal - (Number(fee) || 0);
 
-  const groups = useMemo(() => {
+  const cats = useMemo(() => {
     const term = q.trim().toLowerCase();
-    const map = new Map<string, MenuItem[]>();
-    for (const m of menus) {
-      if (term && !m.name.toLowerCase().includes(term)) continue;
-      const key = m.category || "Lainnya";
-      map.set(key, [...(map.get(key) ?? []), m]);
-    }
-    return Array.from(map.entries());
-  }, [menus, q]);
+    return buildSellCats(term ? menus.filter((m) => m.name.toLowerCase().includes(term)) : menus, productGroups);
+  }, [menus, q, productGroups]);
 
   function resetForm() {
     setCart({});
     setDiscRows([]);
     setFee("");
     setCustomer("");
+    setNoDisc(false);
+    setNoFee(false);
+    setStep("pilih");
     setEditingId(null);
   }
 
@@ -215,6 +215,9 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     setDiscKey((k) => k + 10);
     setFee(s.platform_fee ? String(s.platform_fee) : "");
     setCustomer(custNames[s.id] ?? "");
+    setNoDisc(true);
+    setNoFee(true);
+    setStep("pilih");
     setEditingId(s.id);
     setMsg(null);
     setLastSavedId(null);
@@ -324,6 +327,215 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     loadHistory();
   }
 
+  const isPlatform = online && channel !== "offline";
+  const needDisc = isPlatform && discLines.length === 0 && !noDisc;
+  const needFee = isPlatform && !(Number(fee) > 0) && !noFee;
+
+  useEffect(() => {
+    try { window.scrollTo({ top: 0 }); } catch { /* abaikan */ }
+  }, [step, custom]);
+
+  if (step === "ringkas" && !custom) {
+    return (
+      <div>
+        <PageTitle sub="Periksa lagi sebelum menyimpan. Pelanggan, diskon, dan komisi diisi di sini.">
+          {editingId ? "Cek perubahan" : "Cek pesanan"}
+        </PageTitle>
+        <Notice msg={msg} />
+
+        <Card className="mb-4">
+          <div className="mb-2 flex items-baseline justify-between gap-3">
+            <h2 className="font-semibold">
+              {CHANNEL_LABEL[channel]}
+              {online ? ` · ${date}` : ""}
+            </h2>
+            <button type="button" className="text-sm font-medium text-brand-800 underline" onClick={() => setStep("pilih")}>
+              Ubah pesanan
+            </button>
+          </div>
+          <ul className="divide-y divide-stone-100">
+            {lines.map(([id, l]) => {
+              const m = menus.find((x) => x.id === id);
+              return (
+                <li key={id} className="flex items-start justify-between gap-3 py-2 text-sm">
+                  <span className="min-w-0">
+                    <span className="font-medium">{m ? m.variant_name || m.name : "Menu"}</span>
+                    <span className="block text-xs text-stone-500">{l.qty} × {rupiah(l.price)}</span>
+                  </span>
+                  <span className="shrink-0 font-semibold tabular-nums">{rupiah(l.qty * l.price)}</span>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-2 flex justify-between border-t border-stone-100 pt-2 text-sm font-semibold">
+            <span>Subtotal</span>
+            <span className="tabular-nums">{rupiah(total)}</span>
+          </div>
+        </Card>
+
+        <Card className="mb-4">
+<CustomerField
+          value={customer}
+          onChange={setCustomer}
+          index={custIndex}
+          listId="daftar-pelanggan"
+          ownCount={editingId && custNames[editingId] && custKey(custNames[editingId]) === custKey(customer) ? 1 : 0}
+        />
+        </Card>
+
+        <Card className="mb-4 space-y-3">
+          <h2 className="font-semibold">Diskon</h2>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label>Diskon{discLines.length > 0 ? `: ${rupiah(discountTotal)}` : ""}</Label>
+            <button type="button" className="text-sm font-medium text-brand-800 underline" onClick={() => setManageTypes((v) => !v)}>
+              {manageTypes ? "Selesai" : "Atur jenis diskon"}
+            </button>
+          </div>
+          {discRows.map((r, idx) => (
+            <div key={r.key} className="space-y-2 rounded-xl border border-stone-200 bg-stone-50 p-2.5">
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 text-xs font-semibold text-stone-500">Diskon {idx + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <input
+                    className={inputCls}
+                    value={r.label}
+                    list="daftar-jenis-diskon"
+                    onChange={(e) => setDiscRows((rows) => rows.map((x) => (x.key === r.key ? { ...x, label: e.target.value } : x)))}
+                    placeholder="Nama diskon (mis. Diskon ongkir)"
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="h-11 w-11 shrink-0 rounded-lg border border-stone-300 bg-white text-red-700"
+                  onClick={() => setDiscRows((rows) => rows.filter((x) => x.key !== r.key))}
+                  aria-label="Hapus diskon ini"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 text-sm text-stone-600">Potongan Rp</span>
+                <div className="min-w-0 flex-1">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    className={`${inputCls} text-right font-semibold`}
+                    value={r.amount}
+                    onChange={(e) => setDiscRows((rows) => rows.map((x) => (x.key === r.key ? { ...x, amount: e.target.value } : x)))}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+          <datalist id="daftar-jenis-diskon">
+            {discTypes.map((t) => (
+              <option key={t.id} value={t.name} />
+            ))}
+          </datalist>
+          <div className="flex flex-wrap gap-2">
+            {discTypes.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className="rounded-full border border-stone-300 bg-white px-3 py-1.5 text-sm"
+                onClick={() => { setDiscRows((rows) => [...rows, { key: discKey, label: t.name, amount: "" }]); setDiscKey((k) => k + 1); }}
+              >
+                + {t.name}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="rounded-full border border-dashed border-stone-400 bg-white px-3 py-1.5 text-sm text-stone-600"
+              onClick={() => { setDiscRows((rows) => [...rows, { key: discKey, label: "", amount: "" }]); setDiscKey((k) => k + 1); }}
+            >
+              + Diskon lain
+            </button>
+          </div>
+          {manageTypes && (
+            <div className="space-y-2 rounded-lg bg-stone-50 p-3">
+              <p className="text-xs text-stone-500">Daftar nama diskon yang sering dipakai (tombol di atas).</p>
+              {discTypes.length === 0 && <p className="text-xs text-stone-400">Belum ada. Tambahkan di bawah.</p>}
+              <div className="flex flex-wrap gap-2">
+                {discTypes.map((t) => (
+                  <span key={t.id} className="inline-flex items-center gap-1 rounded-full bg-white py-1 pl-3 pr-1 text-sm ring-1 ring-stone-200">
+                    {t.name}
+                    <button type="button" className="h-7 w-7 rounded-full text-red-700" onClick={() => removeType(t.id)} aria-label={`Hapus ${t.name}`}>✕</button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input className={`${inputCls} min-w-0 flex-1`} value={newType} onChange={(e) => setNewType(e.target.value)} placeholder="Contoh: Diskon member" />
+                <button type="button" className={`${btnGhostCls} shrink-0 px-4`} onClick={addType}>Tambah</button>
+              </div>
+            </div>
+          )}
+        </div>
+          {isPlatform && discLines.length === 0 && (
+            <label className={`flex items-center gap-2 rounded-xl border p-3 text-sm ${noDisc ? "border-brand-600 bg-brand-50" : "border-amber-300 bg-amber-50"}`}>
+              <input type="checkbox" className="h-5 w-5" checked={noDisc} onChange={(e) => setNoDisc(e.target.checked)} />
+              Tidak ada diskon di pesanan ini
+            </label>
+          )}
+        </Card>
+
+        {isPlatform && (
+          <Card className="mb-4 space-y-3">
+            <h2 className="font-semibold">Komisi + promo platform</h2>
+            <input
+              type="number"
+              inputMode="numeric"
+              className={inputCls}
+              value={fee}
+              onChange={(e) => setFee(e.target.value)}
+              placeholder="Rp, lihat di dashboard merchant"
+            />
+            {!(Number(fee) > 0) && (
+              <label className={`flex items-center gap-2 rounded-xl border p-3 text-sm ${noFee ? "border-brand-600 bg-brand-50" : "border-amber-300 bg-amber-50"}`}>
+                <input type="checkbox" className="h-5 w-5" checked={noFee} onChange={(e) => setNoFee(e.target.checked)} />
+                Tidak ada komisi atau promo platform
+              </label>
+            )}
+          </Card>
+        )}
+
+        <Card className="mb-4 space-y-1.5 bg-stone-50 text-sm">
+          <div className="flex justify-between"><span>Subtotal</span><span className="tabular-nums">{rupiah(total)}</span></div>
+          {discLines.map((d, i) => (
+            <div key={i} className="flex justify-between text-red-700">
+              <span className="truncate">{d.label}</span>
+              <span className="shrink-0 tabular-nums">−{rupiah(d.amount)}</span>
+            </div>
+          ))}
+          {isPlatform && (Number(fee) || 0) > 0 && (
+            <div className="flex justify-between text-red-700"><span>Komisi + promo platform</span><span className="tabular-nums">−{rupiah(Number(fee))}</span></div>
+          )}
+          <div className="flex justify-between border-t border-stone-200 pt-1.5 text-lg font-bold">
+            <span>Pendapatan bersih</span>
+            <span className="tabular-nums">{rupiah(net)}</span>
+          </div>
+        </Card>
+
+        {(needDisc || needFee) && (
+          <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
+            {needDisc && needFee
+              ? "Isi diskon dan komisi, atau centang bahwa memang tidak ada, supaya tidak terlewat."
+              : needDisc
+                ? "Isi diskon, atau centang bahwa memang tidak ada diskon."
+                : "Isi komisi atau promo platform, atau centang bahwa memang tidak ada."}
+          </p>
+        )}
+        <div className="sticky bottom-20 z-10 grid grid-cols-2 gap-3 rounded-2xl border border-stone-300 bg-white p-3 shadow-lg">
+          <button className={btnGhostCls} onClick={() => setStep("pilih")} disabled={busy}>‹ Kembali</button>
+          <button className={btnCls} onClick={submit} disabled={busy || portions === 0 || needDisc || needFee}>
+            {busy ? "Menyimpan…" : editingId ? "Perbarui" : "Simpan penjualan"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (custom) {
     return (
       <div>
@@ -417,13 +629,6 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
               onChange={(e) => setDate(e.target.value)}
             />
           </div>
-          <CustomerField
-          value={customer}
-          onChange={setCustomer}
-          index={custIndex}
-          listId="daftar-pelanggan"
-          ownCount={editingId && custNames[editingId] && custKey(custNames[editingId]) === custKey(customer) ? 1 : 0}
-        />
         </Card>
       )}
 
@@ -440,32 +645,30 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
         </p>
       )}
 
-      {groups.map(([cat, items]) => (
-        <section key={cat} className="mb-4">
-          <h2 className="mb-2 text-sm font-semibold text-stone-500">{cat}</h2>
+      {cats.map((cat) => (
+        <section key={cat.name} className="mb-4">
+          <h2 className="mb-2 text-sm font-semibold text-stone-500">{cat.name}</h2>
           <div className="space-y-2">
-            {groupByProduct(items, productGroups, "").map((bucket) =>
-              bucket.groupId === null ? (
-                bucket.items.map((m) => (
-                  <Card key={m.id} className={cart[m.id] ? "border-brand-600" : ""}>
-                    <ProductRow
-                      m={m}
-                      label={m.name}
-                      cart={cart}
-                      stock={stock}
-                      online={online}
-                      channel={channel}
-                      prices={prices}
-                      change={change}
-                      setPrice={setPrice}
-                    />
-                  </Card>
-                ))
+            {cat.units.map((u) =>
+              u.groupId === null ? (
+                <Card key={u.key} className={cart[u.menus[0].id] ? "border-brand-600" : ""}>
+                  <ProductRow
+                    m={u.menus[0]}
+                    label={u.menus[0].name}
+                    cart={cart}
+                    stock={stock}
+                    online={online}
+                    channel={channel}
+                    prices={prices}
+                    change={change}
+                    setPrice={setPrice}
+                  />
+                </Card>
               ) : (
-                <Card key={bucket.key} className={bucket.items.some((m) => cart[m.id]) ? "border-brand-600" : ""}>
-                  <h3 className="mb-2 text-sm font-semibold">{bucket.label}</h3>
+                <Card key={u.key} className={u.menus.some((m) => cart[m.id]) ? "border-brand-600" : ""}>
+                  <h3 className="mb-2 text-sm font-semibold">{u.label}</h3>
                   <div className="divide-y divide-stone-100">
-                    {bucket.items.map((m) => (
+                    {u.menus.map((m) => (
                       <div key={m.id} className="py-2 first:pt-0 last:pb-0">
                         <ProductRow
                           m={m}
@@ -488,110 +691,6 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
         </section>
       ))}
 
-      <Card className="mb-4 space-y-3">
-        <h2 className="font-semibold">Diskon &amp; komisi</h2>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <Label>Diskon{discLines.length > 0 ? `: ${rupiah(discountTotal)}` : ""}</Label>
-            <button type="button" className="text-sm font-medium text-brand-800 underline" onClick={() => setManageTypes((v) => !v)}>
-              {manageTypes ? "Selesai" : "Atur jenis diskon"}
-            </button>
-          </div>
-          {discRows.map((r, idx) => (
-            <div key={r.key} className="space-y-2 rounded-xl border border-stone-200 bg-stone-50 p-2.5">
-              <div className="flex items-center gap-2">
-                <span className="shrink-0 text-xs font-semibold text-stone-500">Diskon {idx + 1}</span>
-                <div className="min-w-0 flex-1">
-                  <input
-                    className={inputCls}
-                    value={r.label}
-                    list="daftar-jenis-diskon"
-                    onChange={(e) => setDiscRows((rows) => rows.map((x) => (x.key === r.key ? { ...x, label: e.target.value } : x)))}
-                    placeholder="Nama diskon (mis. Diskon ongkir)"
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="h-11 w-11 shrink-0 rounded-lg border border-stone-300 bg-white text-red-700"
-                  onClick={() => setDiscRows((rows) => rows.filter((x) => x.key !== r.key))}
-                  aria-label="Hapus diskon ini"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="shrink-0 text-sm text-stone-600">Potongan Rp</span>
-                <div className="min-w-0 flex-1">
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    className={`${inputCls} text-right font-semibold`}
-                    value={r.amount}
-                    onChange={(e) => setDiscRows((rows) => rows.map((x) => (x.key === r.key ? { ...x, amount: e.target.value } : x)))}
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-          <datalist id="daftar-jenis-diskon">
-            {discTypes.map((t) => (
-              <option key={t.id} value={t.name} />
-            ))}
-          </datalist>
-          <div className="flex flex-wrap gap-2">
-            {discTypes.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                className="rounded-full border border-stone-300 bg-white px-3 py-1.5 text-sm"
-                onClick={() => { setDiscRows((rows) => [...rows, { key: discKey, label: t.name, amount: "" }]); setDiscKey((k) => k + 1); }}
-              >
-                + {t.name}
-              </button>
-            ))}
-            <button
-              type="button"
-              className="rounded-full border border-dashed border-stone-400 bg-white px-3 py-1.5 text-sm text-stone-600"
-              onClick={() => { setDiscRows((rows) => [...rows, { key: discKey, label: "", amount: "" }]); setDiscKey((k) => k + 1); }}
-            >
-              + Diskon lain
-            </button>
-          </div>
-          {manageTypes && (
-            <div className="space-y-2 rounded-lg bg-stone-50 p-3">
-              <p className="text-xs text-stone-500">Daftar nama diskon yang sering dipakai (tombol di atas).</p>
-              {discTypes.length === 0 && <p className="text-xs text-stone-400">Belum ada. Tambahkan di bawah.</p>}
-              <div className="flex flex-wrap gap-2">
-                {discTypes.map((t) => (
-                  <span key={t.id} className="inline-flex items-center gap-1 rounded-full bg-white py-1 pl-3 pr-1 text-sm ring-1 ring-stone-200">
-                    {t.name}
-                    <button type="button" className="h-7 w-7 rounded-full text-red-700" onClick={() => removeType(t.id)} aria-label={`Hapus ${t.name}`}>✕</button>
-                  </span>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <input className={`${inputCls} min-w-0 flex-1`} value={newType} onChange={(e) => setNewType(e.target.value)} placeholder="Contoh: Diskon member" />
-                <button type="button" className={`${btnGhostCls} shrink-0 px-4`} onClick={addType}>Tambah</button>
-              </div>
-            </div>
-          )}
-        </div>
-        {online && channel !== "offline" && (
-          <div>
-            <Label>Komisi + promo platform (Rp)</Label>
-            <input
-              type="number"
-              inputMode="numeric"
-              className={inputCls}
-              value={fee}
-              onChange={(e) => setFee(e.target.value)}
-              placeholder="0"
-            />
-          </div>
-        )}
-      </Card>
-
       <Card className="sticky bottom-20 z-10 space-y-2 border-stone-300 shadow-lg">
         {overStockItems.length > 0 && (
           <p className="text-xs font-medium text-red-700">
@@ -600,15 +699,8 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
         )}
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0 flex-1 text-sm text-stone-500">
-            {portions} item · subtotal {rupiah(total)}
-            {(discountTotal > 0 || (Number(fee) || 0) > 0) && (
-              <div className="truncate text-xs text-red-700">
-                {discountTotal > 0 ? `diskon −${rupiah(discountTotal)}` : ""}
-                {discountTotal > 0 && (Number(fee) || 0) > 0 ? ", " : ""}
-                {(Number(fee) || 0) > 0 ? `komisi −${rupiah(Number(fee))}` : ""}
-              </div>
-            )}
-            <div className="text-lg font-bold text-stone-900">{rupiah(net)}</div>
+            {portions} item
+            <div className="text-lg font-bold text-stone-900">{rupiah(total)}</div>
           </div>
           <div className="flex shrink-0 gap-2">
             {editingId && (
@@ -616,8 +708,8 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                 Batal
               </button>
             )}
-            <button className={btnCls} onClick={submit} disabled={busy || portions === 0}>
-              {busy ? "Menyimpan…" : editingId ? "Perbarui" : "Simpan penjualan"}
+            <button className={btnCls} onClick={() => setStep("ringkas")} disabled={busy || portions === 0}>
+              Lanjut ›
             </button>
           </div>
         </div>

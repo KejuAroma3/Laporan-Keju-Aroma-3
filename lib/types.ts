@@ -23,6 +23,7 @@ export type MenuItem = {
   stock_unit: string;
   product_group_id: string | null;
   variant_name: string | null;
+  sell_order?: number; // urutan di halaman Jual (supabase/23-urutan-menu-jual.sql), 0 = belum diatur
   pack_qty?: number; // isi per penjualan (supabase/15-isi-per-penjualan.sql), bawaan 1
 };
 

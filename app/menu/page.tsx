@@ -133,9 +133,14 @@ export default function MenuPage() {
         <PageTitle sub="Nama, harga jual, kategori, varian, dan foto. Bahan dan HPP diatur di Resep.">
           Menu
         </PageTitle>
-        <Link href="/menu/import" className={`${btnGhostCls} h-10 shrink-0 px-3 text-sm`}>
-          Impor / ekspor
-        </Link>
+        <div className="flex shrink-0 gap-2">
+          <Link href="/menu/order" className={`${btnGhostCls} h-10 px-3 text-sm`}>
+            Atur urutan
+          </Link>
+          <Link href="/menu/import" className={`${btnGhostCls} h-10 px-3 text-sm`}>
+            Impor / ekspor
+          </Link>
+        </div>
       </div>
       <Notice msg={msg} />
 

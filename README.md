@@ -25,7 +25,7 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
    `supabase/6-pengaturan-aplikasi.sql` (butuh tabel dari langkah karyawan), lalu
    `supabase/7-tanggal-belanja.sql` (mengganti fungsi record_purchase; jangan jalankan ulang 1-skema.sql sesudahnya),
    `supabase/8-koreksi-penjualan.sql`, `supabase/9-stok-produk.sql`, `supabase/10-satuan-produk-dan-akses.sql`, `supabase/11-kategori-bahan.sql`, `supabase/12-pengaturan-struk.sql`, lalu
-   `supabase/13-varian-produk.sql`, lalu `supabase/14-urutan-produksi.sql`, lalu `supabase/15-isi-per-penjualan.sql`, lalu `supabase/16-rincian-diskon.sql`, lalu `supabase/17-kemasan-per-penjualan.sql`, lalu `supabase/18-isi-berlaku-semua-menu.sql`, lalu `supabase/19-harga-per-platform.sql`, lalu `supabase/20-produksi-tanpa-resep.sql`, lalu `supabase/21-pesanan-khusus.sql`, lalu `supabase/22-nama-pelanggan.sql`.
+   `supabase/13-varian-produk.sql`, lalu `supabase/14-urutan-produksi.sql`, lalu `supabase/15-isi-per-penjualan.sql`, lalu `supabase/16-rincian-diskon.sql`, lalu `supabase/17-kemasan-per-penjualan.sql`, lalu `supabase/18-isi-berlaku-semua-menu.sql`, lalu `supabase/19-harga-per-platform.sql`, lalu `supabase/20-produksi-tanpa-resep.sql`, lalu `supabase/21-pesanan-khusus.sql`, lalu `supabase/22-nama-pelanggan.sql`, lalu `supabase/23-urutan-menu-jual.sql`.
 2. Sudah pernah menjalankan skema sebelumnya: cukup jalankan file yang belum pernah dijalankan,
    urut dari nomor terkecil. Semua file aman dijalankan berulang.
 3. Authentication > Users: buat akun untuk Anda dan staf.
@@ -112,7 +112,7 @@ dan "Hampers Keju Aroma Original isi 15". Butuh `supabase/15-isi-per-penjualan.s
 - Penjualan lama tidak berubah (isi dihitung 1).
 - Resep selalu dihitung **per 1 pcs**. Isi berlaku untuk semua menu, termasuk yang belum pernah
   diproduksi (dibuat saat dipesan): bahan terpotong sebanyak resep x isi. Bahan yang dicentang
-  "Dipakai sekali per penjualan" (box, kantong) tidak dikali isi. Butuh `supabase/18-isi-berlaku-semua-menu.sql`, lalu `supabase/19-harga-per-platform.sql`, lalu `supabase/20-produksi-tanpa-resep.sql`, lalu `supabase/21-pesanan-khusus.sql`, lalu `supabase/22-nama-pelanggan.sql`.
+  "Dipakai sekali per penjualan" (box, kantong) tidak dikali isi. Butuh `supabase/18-isi-berlaku-semua-menu.sql`, lalu `supabase/19-harga-per-platform.sql`, lalu `supabase/20-produksi-tanpa-resep.sql`, lalu `supabase/21-pesanan-khusus.sql`, lalu `supabase/22-nama-pelanggan.sql`, lalu `supabase/23-urutan-menu-jual.sql`.
 - Varian yang stoknya disatukan (di Atur list produksi): di Resep, stok & HPP-nya mengikuti menu pemegang stok ("ikut <nama>"). Resep utama dikelola di menu pemegang stok; di varian hanya bisa menambah bahan "sekali per penjualan". HPP yang tampil tanpa resep berasal dari HPP stok pemegang stok.
   Di daftar Resep, keterangan "dari produksi" berarti HPP dari stok produksi, "dari resep" berarti
   dihitung dari resep (menu belum diproduksi atau belum disatukan stoknya), dan "isi N" muncul bila isi bukan 1.
@@ -316,3 +316,12 @@ lama. Begitu nama diketik, aplikasi menunjukkan apakah ia pelanggan baru atau su
 kapan terakhir). Nama tercetak di struk ("Pelanggan: ...") dan tampil di riwayat. **Laporan › Pelanggan** menampilkan
 jumlah pelanggan, repeat, dan baru per periode beserta total belanja tiap pelanggan. Butuh
 `supabase/22-nama-pelanggan.sql`. Penjualan lama tetap tanpa nama (bisa diisi lewat Ubah).
+
+## Cek pesanan sebelum simpan, dan urutan menu di halaman Jual
+
+- Di Rekap penjualan, memilih menu lalu **Lanjut ›** membuka layar **Cek pesanan**: rincian pesanan, nama pelanggan,
+  diskon, dan komisi/promo platform. Untuk GoFood/GrabFood/ShopeeFood tombol Simpan baru aktif kalau diskon dan komisi
+  sudah diisi **atau** dicentang "Tidak ada diskon" / "Tidak ada komisi", supaya tidak terlewat. Offline tidak
+  diwajibkan.
+- **Menu › Atur urutan** mengatur urutan kategori, produk, dan varian yang tampil di Rekap penjualan (tombol ▲▼, lalu
+  Simpan urutan). Menu baru tampil paling akhir di kategorinya. Butuh `supabase/23-urutan-menu-jual.sql`.
