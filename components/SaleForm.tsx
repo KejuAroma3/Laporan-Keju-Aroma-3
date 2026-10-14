@@ -417,6 +417,13 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
               onChange={(e) => setDate(e.target.value)}
             />
           </div>
+          <CustomerField
+          value={customer}
+          onChange={setCustomer}
+          index={custIndex}
+          listId="daftar-pelanggan"
+          ownCount={editingId && custNames[editingId] && custKey(custNames[editingId]) === custKey(customer) ? 1 : 0}
+        />
         </Card>
       )}
 
@@ -481,19 +488,8 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
         </section>
       ))}
 
-      <Card className="sticky bottom-20 z-10 max-h-[70vh] space-y-3 overflow-y-auto border-stone-300 shadow-lg">
-        {overStockItems.length > 0 && (
-          <p className="text-xs font-medium text-red-700">
-            Melebihi stok produk: {overStockItems.join(", ")}. Tetap bisa disimpan, tapi produksi lagi dulu kalau bisa.
-          </p>
-        )}
-        <CustomerField
-          value={customer}
-          onChange={setCustomer}
-          index={custIndex}
-          listId="daftar-pelanggan"
-          ownCount={editingId && custNames[editingId] && custKey(custNames[editingId]) === custKey(customer) ? 1 : 0}
-        />
+      <Card className="mb-4 space-y-3">
+        <h2 className="font-semibold">Diskon &amp; komisi</h2>
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <Label>Diskon{discLines.length > 0 ? `: ${rupiah(discountTotal)}` : ""}</Label>
@@ -594,23 +590,22 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
             />
           </div>
         )}
+      </Card>
+
+      <Card className="sticky bottom-20 z-10 space-y-2 border-stone-300 shadow-lg">
+        {overStockItems.length > 0 && (
+          <p className="text-xs font-medium text-red-700">
+            Melebihi stok produk: {overStockItems.join(", ")}. Tetap bisa disimpan, tapi produksi lagi dulu kalau bisa.
+          </p>
+        )}
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0 flex-1 text-sm text-stone-500">
-            {portions} item, subtotal {rupiah(total)}
-            {(discLines.length > 0 || (Number(fee) || 0) > 0) && (
-              <div className="mt-1 space-y-0.5 text-xs">
-                {discLines.map((d, i) => (
-                  <div key={i} className="flex justify-between gap-3 text-red-700">
-                    <span className="truncate">{d.label}</span>
-                    <span className="shrink-0 tabular-nums">−{rupiah(d.amount)}</span>
-                  </div>
-                ))}
-                {(Number(fee) || 0) > 0 && (
-                  <div className="flex justify-between gap-3 text-red-700">
-                    <span>Komisi + promo platform</span>
-                    <span className="shrink-0 tabular-nums">−{rupiah(Number(fee))}</span>
-                  </div>
-                )}
+            {portions} item · subtotal {rupiah(total)}
+            {(discountTotal > 0 || (Number(fee) || 0) > 0) && (
+              <div className="truncate text-xs text-red-700">
+                {discountTotal > 0 ? `diskon −${rupiah(discountTotal)}` : ""}
+                {discountTotal > 0 && (Number(fee) || 0) > 0 ? ", " : ""}
+                {(Number(fee) || 0) > 0 ? `komisi −${rupiah(Number(fee))}` : ""}
               </div>
             )}
             <div className="text-lg font-bold text-stone-900">{rupiah(net)}</div>
