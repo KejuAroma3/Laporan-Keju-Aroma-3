@@ -232,8 +232,26 @@ function ProduceForm({ rows, entries, onDone }: { rows: ProductStockRow[]; entri
   const [qty, setQty] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [hasRecipe, setHasRecipe] = useState<boolean | null>(null); // resep produksi (bukan bahan per penjualan) menu terpilih
+  const [unitCost, setUnitCost] = useState("");
   const sel = rows.find((r) => r.id === menu);
   const selEntry = entries.find((e) => e.rows.some((r) => r.id === menu));
+
+  useEffect(() => {
+    setHasRecipe(null);
+    setUnitCost("");
+    if (!menu) return;
+    let live = true;
+    supabase
+      .from("recipe_items")
+      .select("ingredient_id", { count: "exact", head: true })
+      .eq("menu_item_id", menu)
+      .eq("per_sale", false)
+      .then(({ count, error }) => {
+        if (live && !error) setHasRecipe((count ?? 0) > 0);
+      });
+    return () => { live = false; };
+  }, [menu]);
   const selLabel = selEntry && selEntry.kind !== "group" ? selEntry.label : sel?.name ?? "";
 
   async function save() {
@@ -241,11 +259,16 @@ function ProduceForm({ rows, entries, onDone }: { rows: ProductStockRow[]; entri
       onDone({ type: "err", text: "Pilih menu dan isi jumlah yang diproduksi." });
       return;
     }
+    if (hasRecipe === false && !(Number(unitCost) >= 0 && unitCost !== "")) {
+      onDone({ type: "err", text: "Menu ini belum punya resep produksi. Isi HPP per pcs di bawah, atau isi resepnya di Lainnya › Resep." });
+      return;
+    }
     setBusy(true);
     const { error } = await supabase.rpc("record_production", {
       p_menu: menu,
       p_qty: Number(qty),
       p_note: note || null,
+      ...(hasRecipe === false ? { p_unit_cost: Number(unitCost) } : {}),
     });
     setBusy(false);
     if (error) {
@@ -254,12 +277,20 @@ function ProduceForm({ rows, entries, onDone }: { rows: ProductStockRow[]; entri
         type: "err",
         text: missing
           ? "Fitur stok produk belum diaktifkan. Jalankan supabase/9-stok-produk.sql di Supabase (SQL Editor)."
-          : error.message,
+          : /p_unit_cost/.test(error.message)
+            ? "Produksi tanpa resep belum aktif. Jalankan supabase/20-produksi-tanpa-resep.sql di Supabase (SQL Editor), lalu coba lagi."
+            : error.message,
       });
       return;
     }
-    setQty(""); setNote("");
-    onDone({ type: "ok", text: `Produksi tercatat. Stok "${selLabel}" bertambah, bahan sesuai resep otomatis terpotong.` });
+    setQty(""); setNote(""); setUnitCost("");
+    onDone({
+      type: "ok",
+      text:
+        hasRecipe === false
+          ? `Produksi tercatat. Stok "${selLabel}" bertambah dengan HPP ${rupiah(Number(unitCost))} per ${sel?.stock_unit ?? "pcs"} (tanpa resep, tidak ada bahan terpotong).`
+          : `Produksi tercatat. Stok "${selLabel}" bertambah, bahan sesuai resep otomatis terpotong.`,
+    });
   }
 
   return (
@@ -277,6 +308,24 @@ function ProduceForm({ rows, entries, onDone }: { rows: ProductStockRow[]; entri
           </p>
         )}
       </div>
+      {menu && hasRecipe === false && (
+        <div className="space-y-2 rounded-lg bg-amber-50 p-3">
+          <div className="text-sm font-medium text-amber-900">Menu ini belum punya resep produksi</div>
+          <p className="text-xs text-amber-900">
+            Tidak ada bahan yang terpotong otomatis. Isi HPP per {sel?.stock_unit ?? "pcs"} secara manual
+            (mis. harga beli dimsum jadi), atau isi resepnya dulu di Lainnya › Resep.
+          </p>
+          <Label>HPP per {sel?.stock_unit ?? "pcs"} (Rp)</Label>
+          <input
+            type="number"
+            inputMode="numeric"
+            className={inputCls}
+            value={unitCost}
+            onChange={(e) => setUnitCost(e.target.value)}
+            placeholder={sel?.track_stock ? `Sekarang ${Math.round(sel.avg_product_cost)}` : "Contoh: 2100"}
+          />
+        </div>
+      )}
       <div>
         <Label>Jumlah diproduksi ({sel ? sel.stock_unit : "satuan"})</Label>
         <input type="number" inputMode="decimal" className={inputCls} value={qty} onChange={(e) => setQty(e.target.value)} placeholder="Contoh: 20" />

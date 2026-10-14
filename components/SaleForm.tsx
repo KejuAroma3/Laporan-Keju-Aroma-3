@@ -9,6 +9,10 @@ import { resolveSharedStock, stockHolderId, stockNeeded } from "@/lib/production
 import type { Channel, MenuItem, ProductGroup, ProductStockRow } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
+import CustomerField from "@/components/CustomerField";
+import { custKey, fetchCustomerIndex, saveCustomerName, type CustomerStat } from "@/lib/customers";
+import CustomOrderForm from "@/components/CustomOrderForm";
+import { CUSTOM_MENU_NAME } from "@/lib/customorder";
 import { priceFor, type PriceMap } from "@/lib/platformprice";
 import { cleanDiscounts, discountLinesFor, sumDiscounts, type DiscountInput, type DiscountLine } from "@/lib/discounts";
 
@@ -28,6 +32,7 @@ const timeWib = (iso: string) =>
   new Date(iso).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
 const summarize = (s: HistorySale) =>
   s.sale_items.map((i) => `${i.menu_items?.name ?? "Menu dihapus"} ×${i.qty}`).join(", ");
+const isCustomSale = (s: HistorySale) => s.sale_items.some((i) => i.menu_items?.name === CUSTOM_MENU_NAME);
 const grossOf = (s: HistorySale) => s.sale_items.reduce((sum, i) => sum + i.qty * i.unit_price, 0);
 
 export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
@@ -52,8 +57,14 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const [history, setHistory] = useState<HistorySale[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [lastSavedId, setLastSavedId] = useState<string | null>(null);
+  const [customer, setCustomer] = useState("");
+  const [custIndex, setCustIndex] = useState<Map<string, CustomerStat>>(new Map());
+  const [custNames, setCustNames] = useState<Record<string, string>>({}); // sale_id -> nama pelanggan
+  const [custom, setCustom] = useState<{ editId: string | null } | null>(null); // form Pesanan Khusus terbuka
+  const [customNames, setCustomNames] = useState<Record<string, string>>({}); // sale_id -> nama pesanan khusus
 
   async function load() {
+    fetchCustomerIndex().then(setCustIndex);
     const [m, s, g] = await Promise.all([
       supabase.from("menu_items").select("*").eq("is_active", true).order("category").order("name"),
       supabase.from("v_product_stock").select("*"), // boleh gagal jika supabase/9-stok-produk.sql belum dijalankan
@@ -105,6 +116,20 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
         }
       }
       setDiscDetails(details);
+      // nama pesanan khusus (boleh gagal jika supabase/21-pesanan-khusus.sql belum dijalankan)
+      const names: Record<string, string> = {};
+      if (ids.length > 0) {
+        const cn = await supabase.from("custom_orders").select("sale_id, name").in("sale_id", ids);
+        if (!cn.error) for (const r of (cn.data ?? []) as { sale_id: string; name: string }[]) names[r.sale_id] = r.name;
+      }
+      setCustomNames(names);
+      // nama pelanggan (boleh gagal jika supabase/22-nama-pelanggan.sql belum dijalankan)
+      const cnames: Record<string, string> = {};
+      if (ids.length > 0) {
+        const cu = await supabase.from("sales").select("id, customer_name").in("id", ids).not("customer_name", "is", null);
+        if (!cu.error) for (const r of (cu.data ?? []) as { id: string; customer_name: string }[]) cnames[r.id] = r.customer_name;
+      }
+      setCustNames(cnames);
     }
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -176,6 +201,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     setCart({});
     setDiscRows([]);
     setFee("");
+    setCustomer("");
     setEditingId(null);
   }
 
@@ -188,6 +214,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     );
     setDiscKey((k) => k + 10);
     setFee(s.platform_fee ? String(s.platform_fee) : "");
+    setCustomer(custNames[s.id] ?? "");
     setEditingId(s.id);
     setMsg(null);
     setLastSavedId(null);
@@ -277,6 +304,8 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
       return;
     }
     const wasEditing = Boolean(editingId);
+    let custWarn = "";
+    if (typeof savedId === "string") custWarn = (await saveCustomerName(savedId, customer, custIndex)) ?? "";
     // Rincian diskon disimpan setelah penjualan; total diskon sudah tersimpan di penjualannya.
     let detailWarn = "";
     if (typeof savedId === "string" && discLines.length > 0) {
@@ -288,10 +317,34 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
       }
     }
     resetForm();
-    setMsg({ type: detailWarn ? "err" : "ok", text: `${wasEditing ? "Perubahan disimpan" : "Tersimpan"}. Pendapatan bersih ${rupiah(net)}.${detailWarn}` });
+    const warn = [detailWarn, custWarn ? ` ${custWarn}` : ""].join("");
+    setMsg({ type: warn ? "err" : "ok", text: `${wasEditing ? "Perubahan disimpan" : "Tersimpan"}. Pendapatan bersih ${rupiah(net)}.${warn}` });
     setLastSavedId(typeof savedId === "string" ? savedId : null);
     load();
     loadHistory();
+  }
+
+  if (custom) {
+    return (
+      <div>
+        <PageTitle sub="Pesanan di luar menu: harga per pcs × jumlah, produk dan kemasan yang keluar diisi bebas.">
+          {custom.editId ? "Ubah pesanan khusus" : "Pesanan khusus"}
+        </PageTitle>
+        <CustomOrderForm
+          editId={custom.editId}
+          defaultChannel={channel}
+          defaultDate={date}
+          onCancel={() => setCustom(null)}
+          onDone={(m, id) => {
+            setCustom(null);
+            setMsg(m);
+            setLastSavedId(id);
+            load();
+            loadHistory();
+          }}
+        />
+      </div>
+    );
   }
 
   return (
@@ -326,6 +379,12 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
             </button>
           </div>
         </Card>
+      )}
+
+      {!editingId && (
+        <button type="button" className={`${btnGhostCls} mb-4 w-full`} onClick={() => setCustom({ editId: null })}>
+          + Pesanan khusus (di luar menu)
+        </button>
       )}
 
       {online && (
@@ -428,6 +487,13 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
             Melebihi stok produk: {overStockItems.join(", ")}. Tetap bisa disimpan, tapi produksi lagi dulu kalau bisa.
           </p>
         )}
+        <CustomerField
+          value={customer}
+          onChange={setCustomer}
+          index={custIndex}
+          listId="daftar-pelanggan"
+          ownCount={editingId && custNames[editingId] && custKey(custNames[editingId]) === custKey(customer) ? 1 : 0}
+        />
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <Label>Diskon{discLines.length > 0 ? `: ${rupiah(discountTotal)}` : ""}</Label>
@@ -575,9 +641,12 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                 <div key={s.id} className="py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{summarize(s)}</div>
+                      <div className="truncate text-sm font-medium">
+                        {customNames[s.id] ? `Pesanan khusus: ${customNames[s.id]} ×${s.sale_items.reduce((n, i) => n + i.qty, 0)}` : summarize(s)}
+                      </div>
                       <div className="text-xs text-stone-500">
                         {timeWib(s.sold_at)}
+                        {custNames[s.id] ? ` · ${custNames[s.id]}` : ""}
                         {discountLinesFor(s.discount, discDetails[s.id]).map((d) => `, ${d.label} ${rupiah(d.amount)}`).join("")}
                         {s.platform_fee > 0 ? `, komisi ${rupiah(s.platform_fee)}` : ""}
                       </div>
@@ -592,7 +661,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                     </Link>
                     <button
                       className={`${btnGhostCls} h-9 flex-1 px-2 text-sm`}
-                      onClick={() => editSale(s)}
+                      onClick={() => (isCustomSale(s) ? setCustom({ editId: s.id }) : editSale(s))}
                       disabled={busy}
                     >
                       Ubah

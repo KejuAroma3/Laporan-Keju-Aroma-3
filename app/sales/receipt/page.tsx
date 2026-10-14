@@ -18,6 +18,7 @@ type SaleRow = {
   discount: number;
   sale_discounts?: { label: string; amount: number }[];
   platform_fee: number;
+  customer_name?: string | null;
   sale_items: SaleItemRow[];
 };
 
@@ -62,13 +63,22 @@ function ReceiptContent() {
         else {
           const base = data as unknown as SaleRow;
           setSale(base);
+          // Nama pelanggan dibaca terpisah: boleh gagal jika supabase/22-nama-pelanggan.sql belum dijalankan.
+          supabase
+            .from("sales")
+            .select("customer_name")
+            .eq("id", saleId)
+            .maybeSingle()
+            .then(({ data: c, error: e }) => {
+              if (!e && c) setSale((cur) => (cur ? { ...cur, customer_name: (c as { customer_name: string | null }).customer_name } : cur));
+            });
           // Rincian diskon dibaca terpisah: boleh gagal jika supabase/16-rincian-diskon.sql belum dijalankan.
           supabase
             .from("sale_discounts")
             .select("label, amount")
             .eq("sale_id", saleId)
             .then(({ data: d, error: e }) => {
-              if (!e && d) setSale({ ...base, sale_discounts: d as { label: string; amount: number }[] });
+              if (!e && d) setSale((cur) => ({ ...(cur ?? base), sale_discounts: d as { label: string; amount: number }[] }));
             });
         }
       });
@@ -81,6 +91,7 @@ function ReceiptContent() {
       tagline: settings.tagline,
       sold_at: sale.sold_at,
       channel_label: CHANNEL_LABEL[sale.channel],
+      customer_name: sale.customer_name,
       items: sale.sale_items.map((i) => ({ name: i.menu_items?.name ?? "Menu dihapus", qty: i.qty, unit_price: i.unit_price })),
       discount: sale.discount,
       discount_lines: sale.sale_discounts,

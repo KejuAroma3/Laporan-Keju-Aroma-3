@@ -208,7 +208,9 @@ export default function MenuPage() {
                   <h2 className="mb-2 text-sm font-semibold text-stone-500">{bucket.label}</h2>
                   <div className="space-y-2">
                     {bucket.items.map((m) => {
-                      const hasRecipe = recipes.some((r) => r.menu_item_id === m.id) || (stock[m.id]?.track_stock ?? false);
+                      const mine = recipes.filter((r) => r.menu_item_id === m.id);
+                      const onlyPerSale = mine.length > 0 && mine.every((r) => r.per_sale);
+                      const hasRecipe = mine.length > 0 || (stock[m.id]?.track_stock ?? false);
                       const st = stock[m.id];
                       const tracked = st?.track_stock ?? false;
                       return (
@@ -233,7 +235,9 @@ export default function MenuPage() {
                             <div className="shrink-0 text-right text-sm">
                               <div className="font-semibold tabular-nums">{rupiah(m.price)}</div>
                               {hasRecipe ? (
-                                <div className="text-xs text-stone-400">resep ada</div>
+                                <div className={`text-xs ${onlyPerSale && !(stock[m.id]?.track_stock) ? "font-medium text-amber-700" : "text-stone-400"}`}>
+                                  {onlyPerSale && !(stock[m.id]?.track_stock) ? "hanya bahan per penjualan" : "resep ada"}
+                                </div>
                               ) : (
                                 <div className="text-xs font-medium text-amber-700">Resep kosong</div>
                               )}

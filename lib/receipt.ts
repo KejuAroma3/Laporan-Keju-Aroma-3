@@ -8,6 +8,7 @@ export type ReceiptData = {
   tagline: string;
   sold_at: string; // ISO
   channel_label: string;
+  customer_name?: string | null;
   items: ReceiptItem[];
   discount: number;
   discount_lines?: { label: string; amount: number }[]; // rincian diskon; kalau kosong dipakai satu baris "Diskon"
@@ -74,6 +75,7 @@ export function buildReceiptLines(data: ReceiptData, widthMm: number): string[] 
   lines.push(dSep);
   lines.push(`${timeWib(data.sold_at)}`);
   lines.push(`Platform: ${data.channel_label}`);
+  if (data.customer_name) lines.push(...wrap(`Pelanggan: ${data.customer_name}`, w));
   lines.push(sep);
 
   let subtotal = 0;

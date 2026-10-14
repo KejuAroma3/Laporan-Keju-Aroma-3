@@ -25,7 +25,7 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
    `supabase/6-pengaturan-aplikasi.sql` (butuh tabel dari langkah karyawan), lalu
    `supabase/7-tanggal-belanja.sql` (mengganti fungsi record_purchase; jangan jalankan ulang 1-skema.sql sesudahnya),
    `supabase/8-koreksi-penjualan.sql`, `supabase/9-stok-produk.sql`, `supabase/10-satuan-produk-dan-akses.sql`, `supabase/11-kategori-bahan.sql`, `supabase/12-pengaturan-struk.sql`, lalu
-   `supabase/13-varian-produk.sql`, lalu `supabase/14-urutan-produksi.sql`, lalu `supabase/15-isi-per-penjualan.sql`, lalu `supabase/16-rincian-diskon.sql`, lalu `supabase/17-kemasan-per-penjualan.sql`, lalu `supabase/18-isi-berlaku-semua-menu.sql`, lalu `supabase/19-harga-per-platform.sql`.
+   `supabase/13-varian-produk.sql`, lalu `supabase/14-urutan-produksi.sql`, lalu `supabase/15-isi-per-penjualan.sql`, lalu `supabase/16-rincian-diskon.sql`, lalu `supabase/17-kemasan-per-penjualan.sql`, lalu `supabase/18-isi-berlaku-semua-menu.sql`, lalu `supabase/19-harga-per-platform.sql`, lalu `supabase/20-produksi-tanpa-resep.sql`, lalu `supabase/21-pesanan-khusus.sql`, lalu `supabase/22-nama-pelanggan.sql`.
 2. Sudah pernah menjalankan skema sebelumnya: cukup jalankan file yang belum pernah dijalankan,
    urut dari nomor terkecil. Semua file aman dijalankan berulang.
 3. Authentication > Users: buat akun untuk Anda dan staf.
@@ -112,7 +112,7 @@ dan "Hampers Keju Aroma Original isi 15". Butuh `supabase/15-isi-per-penjualan.s
 - Penjualan lama tidak berubah (isi dihitung 1).
 - Resep selalu dihitung **per 1 pcs**. Isi berlaku untuk semua menu, termasuk yang belum pernah
   diproduksi (dibuat saat dipesan): bahan terpotong sebanyak resep x isi. Bahan yang dicentang
-  "Dipakai sekali per penjualan" (box, kantong) tidak dikali isi. Butuh `supabase/18-isi-berlaku-semua-menu.sql`, lalu `supabase/19-harga-per-platform.sql`.
+  "Dipakai sekali per penjualan" (box, kantong) tidak dikali isi. Butuh `supabase/18-isi-berlaku-semua-menu.sql`, lalu `supabase/19-harga-per-platform.sql`, lalu `supabase/20-produksi-tanpa-resep.sql`, lalu `supabase/21-pesanan-khusus.sql`, lalu `supabase/22-nama-pelanggan.sql`.
 - Varian yang stoknya disatukan (di Atur list produksi): di Resep, stok & HPP-nya mengikuti menu pemegang stok ("ikut <nama>"). Resep utama dikelola di menu pemegang stok; di varian hanya bisa menambah bahan "sekali per penjualan". HPP yang tampil tanpa resep berasal dari HPP stok pemegang stok.
   Di daftar Resep, keterangan "dari produksi" berarti HPP dari stok produksi, "dari resep" berarti
   dihitung dari resep (menu belum diproduksi atau belum disatukan stoknya), dan "isi N" muncul bila isi bukan 1.
@@ -294,3 +294,25 @@ isi per penjualan, harga Offline/GoFood/GrabFood/ShopeeFood, tampil di jual, dan
 ubah di Excel, lalu unggah kembali. Pratinjau menunjukkan tiap baris sebagai baru/ubah/sama beserta perubahannya
 sebelum diterapkan. Menu dicocokkan lewat nama; kolom kosong atau dihapus tidak mengubah apa pun; isi 0 di kolom
 harga platform untuk menghapus harga khusus platform itu. Resep, foto, dan stok tidak ikut. Harga platform butuh SQL 19.
+
+## Produksi tanpa resep
+
+Untuk produk yang dibeli jadi atau belum punya resep produksi (mis. dimsum), tab Produksi menampilkan kolom
+**HPP per pcs** untuk diisi manual, jadi stok tetap bisa ditambah tanpa resep (tidak ada bahan terpotong).
+Butuh `supabase/20-produksi-tanpa-resep.sql`. Menu yang punya resep produksi tidak berubah.
+
+## Pesanan khusus (di luar menu)
+
+Di **Rekap penjualan** ada tombol **+ Pesanan khusus (di luar menu)**: isi nama pesanan, platform, tanggal,
+produk jadi yang keluar (pcs), kemasan/bahan yang keluar (jumlah bebas tiap pesanan), lalu **harga per pcs × jumlah
+terjual**. HPP, laba, dan margin tampil langsung sebelum disimpan. Stok produk dan kemasan berkurang, dan pesanan
+tercatat sebagai penjualan biasa (ikut Laporan, bisa diubah dan dihapus dari riwayat). Butuh
+`supabase/21-pesanan-khusus.sql`. Produk yang dipilih harus sudah punya stok produksi.
+
+## Nama pelanggan dan repeat order
+
+Di Rekap penjualan (semua platform) dan Pesanan khusus ada isian **Nama pelanggan (opsional)** dengan saran nama
+lama. Begitu nama diketik, aplikasi menunjukkan apakah ia pelanggan baru atau sudah pernah memesan (berapa kali,
+kapan terakhir). Nama tercetak di struk ("Pelanggan: ...") dan tampil di riwayat. **Laporan › Pelanggan** menampilkan
+jumlah pelanggan, repeat, dan baru per periode beserta total belanja tiap pelanggan. Butuh
+`supabase/22-nama-pelanggan.sql`. Penjualan lama tetap tanpa nama (bisa diisi lewat Ubah).
