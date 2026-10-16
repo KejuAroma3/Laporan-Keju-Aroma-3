@@ -80,7 +80,7 @@ export type StockRow = {
 export type SaleRow = {
   discount: number;
   platform_fee: number;
-  sale_items: { qty: number; unit_price: number; unit_cogs: number; menu_items?: { name: string } | null }[];
+  sale_items: { qty: number; unit_price: number; unit_cogs: number; menu_items?: { name: string } | { name: string }[] | null }[];
 };
 
 export type Pnl = {

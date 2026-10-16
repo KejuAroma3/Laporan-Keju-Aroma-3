@@ -87,7 +87,7 @@ export default function Dashboard() {
     const err = [s, p].find((x) => x.error)?.error;
     if (err) setMsg({ type: "err", text: err.message });
 
-    const rows = (s.data ?? []) as SaleRow[];
+    const rows = (s.data ?? []) as unknown as SaleRow[];
     let gross = 0, cogs = 0, disc = 0, fees = 0, portions = 0, custom = 0;
     for (const r of rows) {
       disc += r.discount;
@@ -96,7 +96,7 @@ export default function Dashboard() {
         gross += i.qty * i.unit_price;
         cogs += i.qty * i.unit_cogs;
         // Pesanan Khusus dihitung dalam pcs, terpisah dari porsi menu biasa
-        if (i.menu_items?.name === CUSTOM_MENU_NAME) custom += i.qty;
+        if ((Array.isArray(i.menu_items) ? i.menu_items[0]?.name : i.menu_items?.name) === CUSTOM_MENU_NAME) custom += i.qty;
         else portions += i.qty;
       }
     }
