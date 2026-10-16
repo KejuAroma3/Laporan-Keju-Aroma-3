@@ -7,6 +7,7 @@ import { isSupplyCategory } from "@/lib/group";
 import { buildProductionEntries } from "@/lib/production";
 import { customTotals, type CustomLine } from "@/lib/customorder";
 import type { Channel, ProductGroup, ProductStockRow, StockRow } from "@/lib/types";
+import { loadRole } from "@/lib/authClient";
 import CustomerField from "@/components/CustomerField";
 import { custKey, fetchCustomerIndex, saveCustomerName, type CustomerStat } from "@/lib/customers";
 import { Card, Label, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
@@ -32,6 +33,8 @@ export default function CustomOrderForm({
   const [prod, setProd] = useState<ProductStockRow[]>([]);
   const [groups, setGroups] = useState<ProductGroup[]>([]);
   const [ings, setIngs] = useState<StockRow[]>([]);
+  const [isOwner, setIsOwner] = useState(false); // HPP dan laba hanya terlihat pemilik
+  useEffect(() => { loadRole().then((r) => setIsOwner(r.status === "ready" && r.role === "owner")); }, []);
   const [name, setName] = useState("");
   const [customer, setCustomer] = useState("");
   const [origCustomer, setOrigCustomer] = useState("");
@@ -198,7 +201,7 @@ export default function CustomOrderForm({
     onDone(
       {
         type: custWarn ? "err" : "ok",
-        text: `${editId ? "Perubahan disimpan" : "Pesanan khusus tersimpan"}. Pendapatan bersih ${rupiah(t.revenue)}, HPP ${rupiah(t.cost)}, laba ${rupiah(t.profit)}.${custWarn ? ` ${custWarn}` : ""}`,
+        text: `${editId ? "Perubahan disimpan" : "Pesanan khusus tersimpan"}. Pendapatan bersih ${rupiah(t.revenue)}${isOwner ? `, HPP ${rupiah(t.cost)}, laba ${rupiah(t.profit)}` : ""}.${custWarn ? ` ${custWarn}` : ""}`,
       },
       saleId
     );
@@ -368,11 +371,15 @@ export default function CustomOrderForm({
         {(Number(discount) || 0) > 0 && <div className="flex justify-between text-red-700"><span>Diskon</span><span className="tabular-nums">−{rupiah(Number(discount))}</span></div>}
         {channel !== "offline" && (Number(fee) || 0) > 0 && <div className="flex justify-between text-red-700"><span>Komisi + promo</span><span className="tabular-nums">−{rupiah(Number(fee))}</span></div>}
         <div className="flex justify-between font-semibold"><span>Pendapatan bersih</span><span className="tabular-nums">{rupiah(t.revenue)}</span></div>
+        {isOwner && (
+          <>
         <div className="flex justify-between text-stone-600"><span>HPP total (HPP {rupiah(t.costPerPcs)} per pcs)</span><span className="tabular-nums">{rupiah(t.cost)}</span></div>
         <div className={`flex justify-between text-base font-bold ${t.profit < 0 ? "text-red-700" : "text-brand-800"}`}>
           <span>Laba · margin {t.revenue > 0 ? `${t.margin.toFixed(1)}%` : "-"}</span>
           <span className="tabular-nums">{rupiah(t.profit)}</span>
         </div>
+          </>
+        )}
         {over.length > 0 && (
           <p className="pt-1 text-xs font-medium text-red-700">
             Melebihi stok: {[...new Set(over)].join(", ")}. Tetap bisa disimpan, tapi cek stoknya.

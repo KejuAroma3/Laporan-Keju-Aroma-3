@@ -22,6 +22,7 @@ import type { BestSeller, Period, SaleRow } from "@/lib/types";
 import { loadRole } from "@/lib/authClient";
 import { Card, Notice, PageTitle, Stat, Tabs, type Msg } from "@/components/ui";
 import BestSellerList from "@/components/BestSellerList";
+import { CUSTOM_MENU_NAME } from "@/lib/customorder";
 import HomeStock from "@/components/HomeStock";
 
 const PERIOD_TABS: { id: Period; label: string }[] = [
@@ -44,7 +45,7 @@ function isCurrentOrLater(period: Period, anchor: string) {
 }
 
 export default function Dashboard() {
-  const [today, setToday] = useState({ revenue: 0, profit: 0, portions: 0 });
+  const [today, setToday] = useState({ revenue: 0, profit: 0, portions: 0, custom: 0 });
   const [monthNet, setMonthNet] = useState(0);
   const [monthOpex, setMonthOpex] = useState(0);
   const [msg, setMsg] = useState<Msg>(null);
@@ -78,7 +79,7 @@ export default function Dashboard() {
     const [s, p] = await Promise.all([
       supabase
         .from("sales")
-        .select("discount, platform_fee, sale_items(qty, unit_price, unit_cogs)")
+        .select("discount, platform_fee, sale_items(qty, unit_price, unit_cogs, menu_items(name))")
         .gte("sold_at", start)
         .lte("sold_at", end),
       supabase.rpc("report_pnl", { p_from: monthStartJkt(), p_to: t }),
@@ -87,18 +88,20 @@ export default function Dashboard() {
     if (err) setMsg({ type: "err", text: err.message });
 
     const rows = (s.data ?? []) as SaleRow[];
-    let gross = 0, cogs = 0, disc = 0, fees = 0, portions = 0;
+    let gross = 0, cogs = 0, disc = 0, fees = 0, portions = 0, custom = 0;
     for (const r of rows) {
       disc += r.discount;
       fees += r.platform_fee;
       for (const i of r.sale_items) {
         gross += i.qty * i.unit_price;
         cogs += i.qty * i.unit_cogs;
-        portions += i.qty;
+        // Pesanan Khusus dihitung dalam pcs, terpisah dari porsi menu biasa
+        if (i.menu_items?.name === CUSTOM_MENU_NAME) custom += i.qty;
+        else portions += i.qty;
       }
     }
     const revenue = gross - disc - fees;
-    setToday({ revenue, profit: revenue - cogs, portions });
+    setToday({ revenue, profit: revenue - cogs, portions, custom });
     const pnl = (p.data ?? [])[0];
     setMonthNet(pnl?.net_profit ?? 0);
     setMonthOpex(pnl?.opex ?? 0);
@@ -124,7 +127,7 @@ export default function Dashboard() {
       {isOwner && (
         <div className="mb-4 grid grid-cols-2 gap-3">
           <Stat label="Pendapatan bersih hari ini" value={rupiah(today.revenue)} />
-          <Stat label="Laba kotor hari ini" value={rupiah(today.profit)} hint={`${today.portions} porsi terjual`} />
+          <Stat label="Laba kotor hari ini" value={rupiah(today.profit)} hint={`${today.portions} porsi terjual${today.custom > 0 ? `, ${today.custom} pcs pesanan khusus` : ""}`} />
           <Stat label="Laba bersih bulan ini" value={rupiah(monthNet)} hint="Sudah dikurangi biaya operasional" />
           <Stat label="Biaya operasional bulan ini" value={rupiah(monthOpex)} />
         </div>

@@ -10,6 +10,7 @@ import type { Channel, MenuItem, ProductGroup, ProductStockRow } from "@/lib/typ
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
 import CustomerField from "@/components/CustomerField";
+import { DEFAULT_FEE_RULES, calcFee, fetchFeeRules, feeLabel, type FeeRules } from "@/lib/feerules";
 import { custKey, fetchCustomerIndex, saveCustomerName, type CustomerStat } from "@/lib/customers";
 import CustomOrderForm from "@/components/CustomOrderForm";
 import { CUSTOM_MENU_NAME } from "@/lib/customorder";
@@ -50,7 +51,8 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const [discDetails, setDiscDetails] = useState<Record<string, DiscountLine[]>>({});
   const [manageTypes, setManageTypes] = useState(false);
   const [newType, setNewType] = useState("");
-  const [fee, setFee] = useState("");
+  const [feeRules, setFeeRules] = useState<FeeRules>(DEFAULT_FEE_RULES);
+  const [feeKept, setFeeKept] = useState<number | null>(null); // saat ubah penjualan lama: komisi tersimpan dipertahankan sampai dihitung ulang
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
@@ -60,7 +62,6 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const [customer, setCustomer] = useState("");
   const [step, setStep] = useState<"pilih" | "ringkas">("pilih");
   const [noDisc, setNoDisc] = useState(false); // dicentang: memang tidak ada diskon
-  const [noFee, setNoFee] = useState(false); // dicentang: memang tidak ada komisi/promo
   const [custIndex, setCustIndex] = useState<Map<string, CustomerStat>>(new Map());
   const [custNames, setCustNames] = useState<Record<string, string>>({}); // sale_id -> nama pelanggan
   const [custom, setCustom] = useState<{ editId: string | null } | null>(null); // form Pesanan Khusus terbuka
@@ -137,6 +138,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadHistory(); }, [online, date, channel]);
+  useEffect(() => { fetchFeeRules().then(setFeeRules); }, []);
 
   function change(m: MenuItem, delta: number) {
     setLastSavedId(null);
@@ -153,7 +155,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   // Ganti platform: harga baris di keranjang ikut harga platform itu (harga yang sudah diubah manual ikut diganti).
   function switchChannel(c: Channel) {
     setChannel(c);
-    if (c === "offline") setFee("");
+    setFeeKept(null);
     setCart((cur) => {
       const next: Record<string, Line> = {};
       for (const [id, l] of Object.entries(cur)) {
@@ -187,7 +189,10 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     .map(([id]) => menus.find((m) => m.id === id)?.name ?? "menu");
   const discLines = cleanDiscounts(discRows);
   const discountTotal = sumDiscounts(discLines);
-  const net = total - discountTotal - (Number(fee) || 0);
+  const isPlatform = online && channel !== "offline";
+  const feeAuto = isPlatform ? calcFee(feeRules, channel, total - discountTotal) : 0;
+  const fee = isPlatform ? (feeKept ?? feeAuto) : 0;
+  const net = total - discountTotal - fee;
 
   const cats = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -197,10 +202,9 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   function resetForm() {
     setCart({});
     setDiscRows([]);
-    setFee("");
+    setFeeKept(null);
     setCustomer("");
     setNoDisc(false);
-    setNoFee(false);
     setStep("pilih");
     setEditingId(null);
   }
@@ -213,10 +217,9 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
       discountLinesFor(s.discount, discDetails[s.id]).map((d, i) => ({ key: discKey + i, label: d.label, amount: String(d.amount) }))
     );
     setDiscKey((k) => k + 10);
-    setFee(s.platform_fee ? String(s.platform_fee) : "");
+    setFeeKept(Number(s.platform_fee) || 0);
     setCustomer(custNames[s.id] ?? "");
     setNoDisc(true);
-    setNoFee(true);
     setStep("pilih");
     setEditingId(s.id);
     setMsg(null);
@@ -290,14 +293,14 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
           p_sale: editingId,
           p_channel: channel,
           p_discount: discountTotal,
-          p_fee: Number(fee) || 0,
+          p_fee: fee,
           p_sold_at: soldAt,
           p_items: items,
         })
       : await supabase.rpc("record_sale", {
           p_channel: channel,
           p_discount: discountTotal,
-          p_fee: Number(fee) || 0,
+          p_fee: fee,
           p_sold_at: soldAt,
           p_items: items,
         });
@@ -327,9 +330,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     loadHistory();
   }
 
-  const isPlatform = online && channel !== "offline";
   const needDisc = isPlatform && discLines.length === 0 && !noDisc;
-  const needFee = isPlatform && !(Number(fee) > 0) && !noFee;
 
   useEffect(() => {
     try { window.scrollTo({ top: 0 }); } catch { /* abaikan */ }
@@ -338,7 +339,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   if (step === "ringkas" && !custom) {
     return (
       <div>
-        <PageTitle sub="Periksa lagi sebelum menyimpan. Pelanggan, diskon, dan komisi diisi di sini.">
+        <PageTitle sub="Periksa lagi sebelum menyimpan. Pelanggan dan diskon diisi di sini; komisi platform dihitung otomatis.">
           {editingId ? "Cek perubahan" : "Cek pesanan"}
         </PageTitle>
         <Notice msg={msg} />
@@ -480,26 +481,6 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
           )}
         </Card>
 
-        {isPlatform && (
-          <Card className="mb-4 space-y-3">
-            <h2 className="font-semibold">Komisi + promo platform</h2>
-            <input
-              type="number"
-              inputMode="numeric"
-              className={inputCls}
-              value={fee}
-              onChange={(e) => setFee(e.target.value)}
-              placeholder="Rp, lihat di dashboard merchant"
-            />
-            {!(Number(fee) > 0) && (
-              <label className={`flex items-center gap-2 rounded-xl border p-3 text-sm ${noFee ? "border-brand-600 bg-brand-50" : "border-amber-300 bg-amber-50"}`}>
-                <input type="checkbox" className="h-5 w-5" checked={noFee} onChange={(e) => setNoFee(e.target.checked)} />
-                Tidak ada komisi atau promo platform
-              </label>
-            )}
-          </Card>
-        )}
-
         <Card className="mb-4 space-y-1.5 bg-stone-50 text-sm">
           <div className="flex justify-between"><span>Subtotal</span><span className="tabular-nums">{rupiah(total)}</span></div>
           {discLines.map((d, i) => (
@@ -508,8 +489,16 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
               <span className="shrink-0 tabular-nums">−{rupiah(d.amount)}</span>
             </div>
           ))}
-          {isPlatform && (Number(fee) || 0) > 0 && (
-            <div className="flex justify-between text-red-700"><span>Komisi + promo platform</span><span className="tabular-nums">−{rupiah(Number(fee))}</span></div>
+          {isPlatform && fee > 0 && (
+            <div className="flex justify-between text-red-700">
+              <span>Komisi {CHANNEL_LABEL[channel]} <span className="text-xs text-stone-500">({feeKept !== null ? "tersimpan" : feeLabel(feeRules[channel as keyof FeeRules])})</span></span>
+              <span className="tabular-nums">−{rupiah(fee)}</span>
+            </div>
+          )}
+          {isPlatform && feeKept !== null && feeKept !== feeAuto && (
+            <button type="button" className="text-left text-xs font-medium text-brand-800 underline" onClick={() => setFeeKept(null)}>
+              Hitung ulang komisi sesuai aturan ({rupiah(feeAuto)})
+            </button>
           )}
           <div className="flex justify-between border-t border-stone-200 pt-1.5 text-lg font-bold">
             <span>Pendapatan bersih</span>
@@ -517,18 +506,14 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
           </div>
         </Card>
 
-        {(needDisc || needFee) && (
+        {needDisc && (
           <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
-            {needDisc && needFee
-              ? "Isi diskon dan komisi, atau centang bahwa memang tidak ada, supaya tidak terlewat."
-              : needDisc
-                ? "Isi diskon, atau centang bahwa memang tidak ada diskon."
-                : "Isi komisi atau promo platform, atau centang bahwa memang tidak ada."}
+            Isi diskon, atau centang bahwa memang tidak ada diskon.
           </p>
         )}
         <div className="sticky bottom-20 z-10 grid grid-cols-2 gap-3 rounded-2xl border border-stone-300 bg-white p-3 shadow-lg">
           <button className={btnGhostCls} onClick={() => setStep("pilih")} disabled={busy}>‹ Kembali</button>
-          <button className={btnCls} onClick={submit} disabled={busy || portions === 0 || needDisc || needFee}>
+          <button className={btnCls} onClick={submit} disabled={busy || portions === 0 || needDisc}>
             {busy ? "Menyimpan…" : editingId ? "Perbarui" : "Simpan penjualan"}
           </button>
         </div>

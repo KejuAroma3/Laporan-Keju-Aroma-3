@@ -30,11 +30,12 @@ export default function ReportsPage() {
   const [exp, setExp] = useState<Expense[]>([]);
   const [moves, setMoves] = useState<Move[]>([]);
   const [buys, setBuys] = useState<Purchase[]>([]);
+  const [promos, setPromos] = useState<{ kind: string; total_cost: number }[]>([]);
   const [msg, setMsg] = useState<Msg>(null);
 
   async function load() {
     const { start, end } = rangeIso(from, to);
-    const [b, p, c, e, m, pu, pg] = await Promise.all([
+    const [b, p, c, e, m, pu, pg, pr] = await Promise.all([
       supabase.rpc("report_best_sellers", { p_from: from, p_to: to }),
       supabase.rpc("report_pnl", { p_from: from, p_to: to }),
       supabase.rpc("report_channels", { p_from: from, p_to: to }),
@@ -53,6 +54,7 @@ export default function ReportsPage() {
         .lte("created_at", end)
         .order("created_at", { ascending: false }),
       supabase.from("product_groups").select("id, name"), // boleh gagal jika supabase/13-varian-produk.sql belum dijalankan
+      supabase.from("promo_outs").select("kind, total_cost").gte("out_at", start).lte("out_at", end), // boleh gagal jika supabase/24 belum dijalankan
     ]);
     const err = [b, p, c, e, m, pu].find((x) => x.error)?.error;
     setMsg(err ? { type: "err", text: err.message } : null);
@@ -65,6 +67,7 @@ export default function ReportsPage() {
     setExp((e.data ?? []) as Expense[]);
     setMoves((m.data ?? []) as Move[]);
     setBuys((pu.data ?? []) as unknown as Purchase[]);
+    setPromos(pr.error ? [] : ((pr.data ?? []) as { kind: string; total_cost: number }[]));
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [from, to]);
@@ -78,6 +81,10 @@ export default function ReportsPage() {
   const wasteLoss = -moves
     .filter((x) => x.type !== "purchase")
     .reduce((s, x) => s + x.qty * (x.unit_cost ?? 0), 0);
+  const promoCost = promos.reduce((s, x) => s + Number(x.total_cost), 0);
+  const promoByKind = Object.entries(
+    promos.reduce<Record<string, number>>((mp, r) => ({ ...mp, [r.kind]: (mp[r.kind] ?? 0) + Number(r.total_cost) }), {})
+  ).sort((a, b) => b[1] - a[1]);
   const expByCat = Object.entries(
     exp.reduce<Record<string, number>>((mp, r) => ({ ...mp, [r.category]: (mp[r.category] ?? 0) + r.amount }), {})
   ).sort((a, b) => b[1] - a[1]);
@@ -170,7 +177,8 @@ export default function ReportsPage() {
                 <Line label="Biaya operasional" value={-pnl.opex} minus />
                 <Line label="Laba bersih" value={pnl.net_profit} strong note={`margin ${pct(pnl.net_profit, pnl.net_revenue)}`} />
                 <Line label="Waste dan selisih opname" value={-wasteLoss} minus />
-                <Line label="Laba bersih setelah waste" value={pnl.net_profit - wasteLoss} strong />
+                <Line label="Biaya promosi (voucher, sampel, dll.)" value={-promoCost} minus />
+                <Line label="Laba bersih setelah waste dan promosi" value={pnl.net_profit - wasteLoss - promoCost} strong />
               </Card>
               <Card>
                 <h2 className="mb-2 font-semibold">Arus kas sederhana</h2>
@@ -222,6 +230,18 @@ export default function ReportsPage() {
             <h2 className="mb-2 font-semibold">Kerugian stok</h2>
             <Line label="Waste dan selisih opname" value={-wasteLoss} minus />
             <p className="mt-2 text-xs text-stone-500">Bahan yang hilang, rusak, atau tumpah, dinilai dengan harga rata-rata bahan saat itu.</p>
+          </Card>
+          <Card>
+            <h2 className="mb-2 font-semibold">Biaya promosi</h2>
+            {promoByKind.length === 0 ? (
+              <p className="text-sm text-stone-500">Tidak ada pengeluaran promosi di periode ini.</p>
+            ) : (
+              <>
+                {promoByKind.map(([k, v]) => <Line key={k} label={k} value={-v} minus />)}
+                <Line label="Total" value={-promoCost} minus strong />
+              </>
+            )}
+            <p className="mt-2 text-xs text-stone-500">Voucher hadiah, sampel, konsumsi sendiri, dan donasi. Tidak masuk penjualan; dinilai dengan HPP stok.</p>
           </Card>
         </div>
       )}

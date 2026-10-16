@@ -7,9 +7,11 @@ import { loadRole } from "@/lib/authClient";
 import { buildProductionEntries, moveKey, visibleEntries, type ProductionEntry } from "@/lib/production";
 import type { ProductGroup, ProductStockRow } from "@/lib/types";
 import StockSwitch from "@/components/StockSwitch";
+import PromoOut from "@/components/PromoOut";
+import ProductionLog from "@/components/ProductionLog";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, SearchInput, Tabs, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 
-type Tab = "stok" | "produksi" | "sesuaikan" | "atur";
+type Tab = "stok" | "produksi" | "sesuaikan" | "promo" | "atur";
 type Done = (m: Msg) => void;
 
 const NEED_SQL14 =
@@ -51,9 +53,10 @@ export default function ProductionPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
 
+  const [logKey, setLogKey] = useState(0);
   const done: Done = (m) => {
     setMsg(m);
-    if (m?.type === "ok") load();
+    if (m?.type === "ok") { load(); setLogKey((k) => k + 1); }
   };
 
   const entries = useMemo(() => buildProductionEntries(rows, groups), [rows, groups]);
@@ -73,13 +76,20 @@ export default function ProductionPage() {
           { id: "stok", label: "Stok produk" },
           { id: "produksi", label: "Produksi" },
           { id: "sesuaikan", label: "Sesuaikan" },
+          { id: "promo", label: "Promosi" },
           ...(isOwner ? [{ id: "atur" as const, label: "Atur list" }] : []),
         ]}
       />
       <Notice msg={msg} />
       {tab === "stok" && <StockList entries={shown} totalMenus={rows.length} hiddenCount={entries.length - shown.length} showValue={isOwner} />}
-      {tab === "produksi" && <ProduceForm rows={rows} entries={shown} onDone={done} />}
+      {tab === "produksi" && (
+        <>
+          <ProduceForm rows={rows} entries={shown} onDone={done} />
+          <ProductionLog refreshKey={logKey} />
+        </>
+      )}
       {tab === "sesuaikan" && <AdjustForm entries={shown} onDone={done} />}
+      {tab === "promo" && <PromoOut isOwner={isOwner} onDone={done} />}
       {tab === "atur" && isOwner && <ArrangeList entries={entries} ready={sql14Ready} onDone={done} />}
     </div>
   );

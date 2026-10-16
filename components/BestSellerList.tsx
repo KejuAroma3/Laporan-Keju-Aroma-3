@@ -1,4 +1,5 @@
 import { fmt, pct, rupiah } from "@/lib/format";
+import { CUSTOM_MENU_NAME } from "@/lib/customorder";
 import type { BestSeller } from "@/lib/types";
 import { Bar, Empty } from "@/components/ui";
 
@@ -51,7 +52,7 @@ export default function BestSellerList({
           <div className="min-w-0 flex-1">
             <div className="flex items-baseline justify-between gap-2">
               <span className="truncate font-medium">{b.menu}</span>
-              <span className="shrink-0 text-sm tabular-nums text-stone-500">{fmt(b.qty_sold)} porsi</span>
+              <span className="shrink-0 text-sm tabular-nums text-stone-500">{fmt(b.qty_sold)} {b.menu === CUSTOM_MENU_NAME ? "pcs" : "porsi"}</span>
             </div>
             <Bar value={b.qty_sold} max={max} />
             {detailed && (

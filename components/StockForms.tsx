@@ -194,7 +194,7 @@ export function WasteForm({ rows, onDone }: { rows: StockRow[]; onDone: Done }) 
   );
 }
 
-export function OpnameForm({ rows, onDone }: { rows: StockRow[]; onDone: Done }) {
+export function OpnameForm({ rows, onDone, showValue = true }: { rows: StockRow[]; onDone: Done; showValue?: boolean }) {
   const [q, setQ] = useState("");
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -211,6 +211,7 @@ export function OpnameForm({ rows, onDone }: { rows: StockRow[]; onDone: Done })
       onDone({ type: "ok", text: "Tidak ada selisih. Stok sistem sudah sesuai." });
       return;
     }
+    if (!showValue && !confirm(`Simpan hasil opname untuk ${items.length} bahan yang selisih?\n\nStok sistem akan disesuaikan dengan hitungan Anda.`)) return;
     setBusy(true);
     const { error } = await supabase.from("stock_movements").insert(items);
     setBusy(false);
@@ -264,7 +265,7 @@ export function OpnameForm({ rows, onDone }: { rows: StockRow[]; onDone: Done })
                       {diff !== null && Math.abs(diff) >= 0.0001 && (
                         <p className={`mt-1 text-sm font-medium ${diff < 0 ? "text-red-700" : "text-brand-800"}`}>
                           Selisih {diff > 0 ? "+" : ""}
-                          {fmt(diff)} {r.unit} ({rupiah(diff * r.avg_cost)})
+                          {fmt(diff)} {r.unit}{showValue ? ` (${rupiah(diff * r.avg_cost)})` : ""}
                         </p>
                       )}
                     </Card>
@@ -352,20 +353,21 @@ export function UsageBatchForm({ rows, onDone }: { rows: StockRow[]; onDone: Don
                   const v = Number(used[r.id]);
                   const over = v > r.on_hand;
                   return (
-                    <Card key={r.id}>
-                      <div className="flex items-center gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate font-semibold">{r.name}</div>
-                          <div className="text-sm text-stone-500 tabular-nums">Sisa {fmt(r.on_hand)} {r.unit}</div>
-                        </div>
+                    <Card key={r.id} className="!p-3">
+                      <div className="mb-2 flex items-baseline justify-between gap-2">
+                        <span className="min-w-0 text-sm font-semibold leading-snug">{r.name}</span>
+                        <span className="shrink-0 text-xs tabular-nums text-stone-500">Sisa {fmt(r.on_hand)} {r.unit}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
                         <input
                           type="number"
                           inputMode="decimal"
-                          className={`${inputCls} w-28 shrink-0`}
-                          placeholder={r.unit}
+                          className={`${inputCls} !h-10 min-w-0 flex-1 text-right`}
+                          placeholder="Jumlah terpakai"
                           value={used[r.id] ?? ""}
                           onChange={(e) => setUsed({ ...used, [r.id]: e.target.value })}
                         />
+                        <span className="w-12 shrink-0 text-sm text-stone-600">{r.unit}</span>
                       </div>
                       {over && <p className="mt-1 text-xs font-medium text-red-700">Lebih banyak dari sisa stok.</p>}
                     </Card>

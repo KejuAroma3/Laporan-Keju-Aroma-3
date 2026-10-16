@@ -1,18 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { DEFAULT_FEE_RULES, fetchFeeRules, feeLabel, type FeeRules } from "@/lib/feerules";
 import { CHANNEL_LABEL, pct, rupiah } from "@/lib/format";
 import { ONLINE_CHANNELS, marginAt, suggestPrice } from "@/lib/platformprice";
 import type { Channel, MenuItem } from "@/lib/types";
 import { Label, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 
 const KEY = "harga-platform-pengaturan";
-type Cfg = { commission: Record<string, string>; target: string };
-const DEFAULT: Cfg = { commission: { gofood: "20", grabfood: "20", shopeefood: "20" }, target: "30" };
+type Cfg = { target: string };
+const DEFAULT: Cfg = { target: "30" };
 
 // Harga jual per platform untuk satu menu, dibandingkan dengan HPP. Kolom kosong = pakai harga dasar.
-// Komisi (%) dan target margin hanya alat bantu hitung (disimpan di perangkat ini), bukan data penjualan.
+// Komisi (%) diambil dari aturan komisi platform; target margin hanya alat bantu hitung (disimpan di perangkat ini).
 export default function PlatformPrices({
   menu,
   hpp,
@@ -28,6 +30,8 @@ export default function PlatformPrices({
     Object.fromEntries(ONLINE_CHANNELS.map((c) => [c, saved[c] ? String(saved[c]) : ""]))
   );
   const [cfg, setCfg] = useState<Cfg>(DEFAULT);
+  const [rules, setRules] = useState<FeeRules>(DEFAULT_FEE_RULES);
+  useEffect(() => { fetchFeeRules().then(setRules); }, []);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -35,7 +39,7 @@ export default function PlatformPrices({
       const raw = localStorage.getItem(KEY);
       if (raw) {
         const p = JSON.parse(raw) as Partial<Cfg>;
-        setCfg({ commission: { ...DEFAULT.commission, ...(p.commission ?? {}) }, target: p.target ?? DEFAULT.target });
+        setCfg({ target: p.target ?? DEFAULT.target });
       }
     } catch { /* pakai bawaan */ }
   }, []);
@@ -46,7 +50,7 @@ export default function PlatformPrices({
   }
 
   const target = Number(cfg.target) || 0;
-  const commissionOf = (c: string) => Number(cfg.commission[c]) || 0;
+  const commissionOf = (c: string) => rules[c as keyof FeeRules]?.percent ?? 0;
 
   function suggestAll() {
     if (hpp <= 0) return;
@@ -133,20 +137,10 @@ export default function PlatformPrices({
           <input type="number" inputMode="decimal" className={inputCls} value={cfg.target} onChange={(e) => updateCfg({ ...cfg, target: e.target.value })} />
         </div>
         <div className="text-xs text-stone-500">
-          Komisi platform (%), dipakai menghitung laba dan saran harga:
+          Komisi platform memakai aturan di{" "}
+          <Link href="/fees" className="underline">Lainnya › Komisi platform</Link>
+          {ONLINE_CHANNELS.map((c) => ` · ${CHANNEL_LABEL[c]} ${feeLabel(rules[c as keyof FeeRules])}`).join("")}.
         </div>
-        {ONLINE_CHANNELS.map((c) => (
-          <div key={c}>
-            <Label>{CHANNEL_LABEL[c]}</Label>
-            <input
-              type="number"
-              inputMode="decimal"
-              className={inputCls}
-              value={cfg.commission[c] ?? ""}
-              onChange={(e) => updateCfg({ ...cfg, commission: { ...cfg.commission, [c]: e.target.value } })}
-            />
-          </div>
-        ))}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <button type="button" className={btnGhostCls} onClick={suggestAll} disabled={hpp <= 0}>

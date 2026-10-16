@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/stock", title: "Stok bahan", desc: "Stok bahan baku, satuan, batas minimum", icon: "🌾" },
   { href: "/ingredients", title: "Bahan baku", desc: "Daftar bahan, satuan, batas stok minimum", icon: "🧀" },
   { href: "/expenses", title: "Biaya operasional", desc: "Sewa, gaji, listrik, gas, dan lainnya", icon: "💰" },
+  { href: "/fees", title: "Komisi platform", desc: "Atur komisi GoFood, GrabFood, ShopeeFood (otomatis di penjualan)", icon: "🛵" },
   { href: "/staff", title: "Karyawan", desc: "Tambah akun staf, ubah email dan kata sandi", icon: "👥" },
   { href: "/settings", title: "Pengaturan", desc: "Nama usaha, logo, dan warna tema aplikasi", icon: "⚙️" },
 ];

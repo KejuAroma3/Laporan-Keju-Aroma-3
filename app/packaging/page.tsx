@@ -52,16 +52,23 @@ export default function PackagingPage() {
       <PageTitle sub="Plastik, box, handgloves, label, kabel ties, dan perlengkapan lain.">Stok</PageTitle>
       <StockSwitch />
       <div>
-        {isOwner && <Tabs
+        <Tabs
           value={tab}
           onChange={(t) => { setTab(t); setMsg(null); }}
-          tabs={[
-            { id: "stok", label: "Stok" },
-            { id: "belanja", label: "Belanja" },
-            { id: "pakai", label: "Pakai" },
-            { id: "opname", label: "Opname" },
-          ]}
-        />}
+          tabs={
+            isOwner
+              ? [
+                  { id: "stok", label: "Stok" },
+                  { id: "belanja", label: "Belanja" },
+                  { id: "pakai", label: "Pakai" },
+                  { id: "opname", label: "Opname" },
+                ]
+              : [
+                  { id: "stok", label: "Stok" },
+                  { id: "opname", label: "Opname" },
+                ]
+          }
+        />
         <Notice msg={msg} />
         {loading ? (
           <p className="py-6 text-center text-sm text-stone-500">Memuat…</p>
@@ -72,10 +79,10 @@ export default function PackagingPage() {
           </Empty>
         ) : (
           <>
-            {(tab === "stok" || !isOwner) && <SupplyList rows={rows} usedIn={usedIn} showValue={isOwner} />}
+            {(tab === "stok" || (!isOwner && tab !== "opname")) && <SupplyList rows={rows} usedIn={usedIn} showValue={isOwner} />}
             {isOwner && tab === "belanja" && <PurchaseForm rows={rows} onDone={done} scoped />}
             {isOwner && tab === "pakai" && <UsageBatchForm rows={rows} onDone={done} />}
-            {isOwner && tab === "opname" && <OpnameForm rows={rows} onDone={done} />}
+            {tab === "opname" && <OpnameForm rows={rows} onDone={done} showValue={isOwner} />}
           </>
         )}
       </div>
