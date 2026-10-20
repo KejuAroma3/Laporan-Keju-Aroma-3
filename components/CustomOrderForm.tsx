@@ -370,8 +370,13 @@ export default function CustomOrderForm({
       <Card className="space-y-1.5 border-stone-300 bg-stone-50 text-sm">
         <div className="flex justify-between"><span>{fmt(effQty)} pcs × {rupiah(Number(unitPrice) || 0)}</span><span className="tabular-nums">{rupiah(t.gross)}</span></div>
         {(Number(discount) || 0) > 0 && <div className="flex justify-between text-red-700"><span>Diskon</span><span className="tabular-nums">−{rupiah(Number(discount))}</span></div>}
-        {channel !== "offline" && (Number(fee) || 0) > 0 && <div className="flex justify-between text-red-700"><span>Komisi + promo</span><span className="tabular-nums">−{rupiah(Number(fee))}</span></div>}
-        <div className="flex justify-between font-semibold"><span>Pendapatan bersih</span><span className="tabular-nums">{rupiah(t.revenue)}</span></div>
+        {channel !== "offline" && (Number(fee) || 0) > 0 && (
+          <>
+            <div className="flex justify-between border-t border-stone-200 pt-1.5 font-semibold"><span>Pendapatan bersih</span><span className="tabular-nums">{rupiah(t.revenue + (Number(fee) || 0))}</span></div>
+            <div className="flex justify-between text-red-700"><span>Komisi + promo</span><span className="tabular-nums">−{rupiah(Number(fee))}</span></div>
+          </>
+        )}
+        <div className="flex justify-between font-semibold"><span>{channel !== "offline" && (Number(fee) || 0) > 0 ? "Diterima setelah komisi" : "Pendapatan bersih"}</span><span className="tabular-nums">{rupiah(t.revenue)}</span></div>
         {isOwner && (
           <>
         <div className="flex justify-between text-stone-600"><span>HPP total (HPP {rupiah(t.costPerPcs)} per pcs)</span><span className="tabular-nums">{rupiah(t.cost)}</span></div>

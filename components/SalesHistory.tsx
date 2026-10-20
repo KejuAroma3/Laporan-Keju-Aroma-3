@@ -64,7 +64,7 @@ export default function SalesHistory() {
       b.gross += gross;
       b.discount += Number(s.discount);
       b.fee += Number(s.platform_fee);
-      b.net += gross - Number(s.discount) - Number(s.platform_fee);
+      b.net += gross - Number(s.discount); // pendapatan bersih: setelah diskon, sebelum komisi
       m.set(key, b);
     }
     return [...m.values()].sort((a, b) => b.key.localeCompare(a.key));
@@ -77,13 +77,14 @@ export default function SalesHistory() {
       const gross = s.sale_items.reduce((t, i) => t + i.qty * i.unit_price, 0);
       const c = m.get(s.channel) ?? { channel: s.channel, trx: 0, net: 0 };
       c.trx += 1;
-      c.net += gross - Number(s.discount) - Number(s.platform_fee);
+      c.net += gross - Number(s.discount);
       m.set(s.channel, c);
     }
     return [...m.values()].sort((a, b) => b[chanSort] - a[chanSort]);
   }, [sales, chanSort]);
 
   const totalNet = buckets.reduce((s, b) => s + b.net, 0);
+  const totalFee = buckets.reduce((s, b) => s + b.fee, 0);
   const totalTrx = buckets.reduce((s, b) => s + b.trx, 0);
   const maxNet = Math.max(1, ...buckets.map((b) => b.net));
 
@@ -121,7 +122,7 @@ export default function SalesHistory() {
           <span className="text-sm text-stone-600">Total penjualan bersih · {title}</span>
           <span className="text-xl font-bold tabular-nums">{rupiah(totalNet)}</span>
         </div>
-        <div className="mt-0.5 text-xs text-stone-500">{fmt(totalTrx)} transaksi · setelah diskon dan komisi platform</div>
+        <div className="mt-0.5 text-xs text-stone-500">{fmt(totalTrx)} transaksi · setelah diskon (komisi platform {rupiah(totalFee)} dipisah)</div>
       </Card>
 
       {!loading && channels.length > 0 && (
@@ -176,7 +177,7 @@ export default function SalesHistory() {
                   <span>
                     Kotor {rupiah(b.gross)}
                     {b.discount > 0 ? ` · diskon −${rupiah(b.discount)}` : ""}
-                    {b.fee > 0 ? ` · komisi −${rupiah(b.fee)}` : ""}
+                    {b.fee > 0 ? ` · komisi −${rupiah(b.fee)} · diterima ${rupiah(b.net - b.fee)}` : ""}
                   </span>
                 </div>
               </li>

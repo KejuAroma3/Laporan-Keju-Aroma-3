@@ -174,8 +174,9 @@ export default function ReportsPage() {
                 <h2 className="mb-2 font-semibold">Laporan laba rugi</h2>
                 <Line label="Penjualan kotor" value={pnl.gross_sales} />
                 <Line label="Diskon" value={-pnl.discounts} minus />
+                <Line label="Pendapatan bersih (setelah diskon)" value={pnl.gross_sales - pnl.discounts} strong />
                 <Line label="Komisi dan promo platform" value={-pnl.platform_fees} minus />
-                <Line label="Pendapatan bersih" value={pnl.net_revenue} strong />
+                <Line label="Pendapatan setelah komisi" value={pnl.net_revenue} strong />
                 <Line label="HPP (bahan terpakai)" value={-pnl.cogs} minus />
                 <Line label="Laba kotor" value={pnl.gross_profit} strong note={`margin ${pct(pnl.gross_profit, pnl.net_revenue)}`} />
                 <Line label="Biaya operasional" value={-pnl.opex} minus />
@@ -186,7 +187,7 @@ export default function ReportsPage() {
               </Card>
               <Card>
                 <h2 className="mb-2 font-semibold">Arus kas sederhana</h2>
-                <Line label="Uang masuk (pendapatan bersih)" value={pnl.net_revenue} />
+                <Line label="Uang masuk (setelah diskon dan komisi)" value={pnl.net_revenue} />
                 <Line label="Belanja bahan baku" value={-purchases} minus />
                 <Line label="Biaya operasional" value={-opex} minus />
                 <Line label="Kas bersih periode ini" value={pnl.net_revenue - purchases - opex} strong />

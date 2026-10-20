@@ -126,7 +126,7 @@ export default function Dashboard() {
 
       {isOwner && (
         <div className="mb-4 grid grid-cols-2 gap-3">
-          <Stat label="Pendapatan bersih hari ini" value={rupiah(today.revenue)} />
+          <Stat label="Diterima hari ini" value={rupiah(today.revenue)} hint="Setelah diskon dan komisi" />
           <Stat label="Laba kotor hari ini" value={rupiah(today.profit)} hint={`${today.portions} porsi terjual${today.custom > 0 ? `, ${today.custom} pcs pesanan khusus` : ""}`} />
           <Stat label="Laba bersih bulan ini" value={rupiah(monthNet)} hint="Sudah dikurangi biaya operasional" />
           <Stat label="Biaya operasional bulan ini" value={rupiah(monthOpex)} />

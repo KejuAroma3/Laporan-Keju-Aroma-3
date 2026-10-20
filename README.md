@@ -393,3 +393,9 @@ jumlah pelanggan, repeat, dan baru per periode beserta total belanja tiap pelang
   (mis. Plastik PE UK 24, UK 35). Kabel Ties × 1 otomatis muncul di Cek pesanan bila salah satu plastik itu ada, dan hilang bila plastiknya dihapus.
 - Centang "jumlah mengikuti jumlah kemasan pemicu" bila 1 per plastik; tanpa centang = sekali per transaksi.
 - Jumlah yang diubah kasir tidak ditimpa. Butuh `supabase/28-kemasan-ikutan.sql`.
+
+## Urutan komisi setelah pendapatan bersih
+
+- **Pendapatan bersih** = penjualan kotor − diskon. Komisi platform dihitung dari angka ini dan ditampilkan **sesudahnya**,
+  lalu **Diterima setelah komisi**. Berlaku di Cek pesanan, Pesanan Khusus, Laporan › Laba rugi, dan Laporan › Riwayat.
+- Hanya tampilan; data penjualan dan laba tidak berubah. Beranda memakai label "Diterima hari ini".

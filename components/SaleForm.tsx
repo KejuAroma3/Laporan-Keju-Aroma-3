@@ -367,7 +367,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     }
     resetForm();
     const warn = [detailWarn, custWarn ? ` ${custWarn}` : "", packWarn ? ` ${packWarn}` : ""].join("");
-    setMsg({ type: warn ? "err" : "ok", text: `${wasEditing ? "Perubahan disimpan" : "Tersimpan"}. Pendapatan bersih ${rupiah(net)}.${warn}` });
+    setMsg({ type: warn ? "err" : "ok", text: `${wasEditing ? "Perubahan disimpan" : "Tersimpan"}. Pendapatan bersih ${rupiah(total - discountTotal)}${fee > 0 ? `, diterima ${rupiah(net)} setelah komisi` : ""}.${warn}` });
     setLastSavedId(typeof savedId === "string" ? savedId : null);
     load();
     loadHistory();
@@ -588,6 +588,12 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
             </div>
           ))}
           {isPlatform && fee > 0 && (
+            <div className="flex justify-between border-t border-stone-200 pt-1.5 font-semibold">
+              <span>Pendapatan bersih</span>
+              <span className="tabular-nums">{rupiah(total - discountTotal)}</span>
+            </div>
+          )}
+          {isPlatform && fee > 0 && (
             <div className="flex justify-between text-red-700">
               <span>Komisi {CHANNEL_LABEL[channel]} <span className="text-xs text-stone-500">({feeKept !== null ? "tersimpan" : feeLabel(feeRules[channel as keyof FeeRules])})</span></span>
               <span className="tabular-nums">−{rupiah(fee)}</span>
@@ -599,7 +605,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
             </button>
           )}
           <div className="flex justify-between border-t border-stone-200 pt-1.5 text-lg font-bold">
-            <span>Pendapatan bersih</span>
+            <span>{isPlatform && fee > 0 ? "Diterima setelah komisi" : "Pendapatan bersih"}</span>
             <span className="tabular-nums">{rupiah(net)}</span>
           </div>
         </Card>
