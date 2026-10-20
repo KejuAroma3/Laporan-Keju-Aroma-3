@@ -12,13 +12,14 @@ import OwnerOnly from "@/components/OwnerOnly";
 
 const ALL: Channel[] = ["offline", "gofood", "grabfood", "shopeefood"];
 
-type Draft = { id: string | null; ingredient_id: string; qty: string; channels: Channel[] };
+type Draft = { id: string | null; ingredient_id: string; qty: string; channels: Channel[]; follow_of: string[]; per_trigger: boolean };
 
 export default function TxPackPage() {
   const [rules, setRules] = useState<TxRule[]>([]);
   const [ings, setIngs] = useState<StockRow[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
+  const [draftFollow, setDraftFollow] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
   const [sizes, setSizes] = useState<BoxSize[]>([]);
   const [exclude, setExclude] = useState("frozen");
@@ -43,15 +44,26 @@ export default function TxPackPage() {
     if (!draft) return;
     if (!draft.ingredient_id) return setMsg({ type: "err", text: "Pilih bahan kemasannya." });
     if (!(Number(draft.qty) > 0)) return setMsg({ type: "err", text: "Isi jumlah per transaksi (lebih dari 0)." });
+    if (draftFollow && draft.follow_of.length === 0) return setMsg({ type: "err", text: "Pilih kemasan pemicu (mis. Plastik PE UK 24)." });
     if (draft.channels.length === 0) return setMsg({ type: "err", text: "Pilih minimal satu platform." });
     setBusy(true);
-    const row = { ingredient_id: draft.ingredient_id, qty: Number(draft.qty), channels: draft.channels };
+    const row = {
+      ingredient_id: draft.ingredient_id,
+      qty: Number(draft.qty),
+      channels: draft.channels,
+      ...(draft.follow_of.length > 0 || draft.id ? { follow_of: draft.follow_of, per_trigger: draft.per_trigger } : {}),
+    };
     const { error } = draft.id
       ? await supabase.from("transaction_packaging_rules").update(row).eq("id", draft.id)
       : await supabase.from("transaction_packaging_rules").insert(row);
     setBusy(false);
     if (error) {
-      return setMsg({ type: "err", text: /transaction_packaging_rules|schema cache/i.test(error.message) ? NEED_TXPACK_SQL : error.message });
+      return setMsg({
+        type: "err",
+        text: /follow_of|per_trigger/.test(error.message)
+          ? "Kemasan ikutan belum aktif. Jalankan supabase/28-kemasan-ikutan.sql di Supabase (SQL Editor), lalu coba lagi."
+          : /transaction_packaging_rules|schema cache/i.test(error.message) ? NEED_TXPACK_SQL : error.message,
+      });
     }
     setDraft(null);
     setMsg({ type: "ok", text: "Aturan tersimpan. Berlaku untuk penjualan berikutnya." });
@@ -112,11 +124,11 @@ export default function TxPackPage() {
               <div className="min-w-0">
                 <div className="font-semibold">{nameOf(r.ingredient_id)} × {fmt(r.qty)} {unitOf(r.ingredient_id)}</div>
                 <div className="text-xs text-stone-500">
-                  Per transaksi · {r.channels.length === ALL.length ? "semua platform" : r.channels.map((c) => CHANNEL_LABEL[c as Channel]).join(", ")}
+                  {r.follow_of.length > 0 ? `Ikut jika ada ${r.follow_of.map(nameOf).join(" / ")}${r.per_trigger ? " (sebanyak pemicu)" : " (sekali)"}` : "Per transaksi"} · {r.channels.length === ALL.length ? "semua platform" : r.channels.map((c) => CHANNEL_LABEL[c as Channel]).join(", ")}
                 </div>
               </div>
               <div className="flex shrink-0 gap-2">
-                <button className={`${btnGhostCls} h-9 px-3 text-sm`} onClick={() => setDraft({ id: r.id, ingredient_id: r.ingredient_id, qty: String(r.qty), channels: r.channels as Channel[] })}>Ubah</button>
+                <button className={`${btnGhostCls} h-9 px-3 text-sm`} onClick={() => { setDraftFollow(r.follow_of.length > 0); setDraft({ id: r.id, ingredient_id: r.ingredient_id, qty: String(r.qty), channels: r.channels as Channel[], follow_of: r.follow_of, per_trigger: r.per_trigger }); }}>Ubah</button>
                 <button className={`${btnGhostCls} h-9 px-3 text-sm text-red-700`} onClick={() => remove(r)}>Hapus</button>
               </div>
             </Card>
@@ -136,6 +148,36 @@ export default function TxPackPage() {
                 <input type="number" inputMode="decimal" className={inputCls} value={draft.qty} onChange={(e) => setDraft({ ...draft, qty: e.target.value })} />
               </div>
               <div>
+                <Label>Kapan muncul</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([["Selalu", false], ["Ikut kemasan lain", true]] as const).map(([label, follow]) => (
+                    <button key={label} type="button"
+                      onClick={() => { setDraftFollow(follow); if (!follow) setDraft({ ...draft, follow_of: [], per_trigger: false }); }}
+                      className={`rounded-xl border px-3 py-2 text-sm ${draftFollow === follow ? "border-brand-700 bg-brand-700 text-brand-fg" : "border-stone-300 bg-white text-stone-700"}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {draftFollow && (
+                  <div className="mt-2 space-y-2 rounded-xl bg-stone-50 p-2.5">
+                    <div className="text-xs text-stone-600">Muncul kalau ada salah satu kemasan ini:</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {options.filter((o) => isSupplyCategory(o.category) && o.id !== draft.ingredient_id).map((o) => (
+                        <button key={o.id} type="button"
+                          onClick={() => setDraft({ ...draft, follow_of: draft.follow_of.includes(o.id) ? draft.follow_of.filter((x) => x !== o.id) : [...draft.follow_of, o.id] })}
+                          className={`rounded-full border px-3 py-1 text-sm ${draft.follow_of.includes(o.id) ? "border-brand-700 bg-brand-700 text-brand-fg" : "border-stone-300 bg-white text-stone-700"}`}>
+                          {o.name}
+                        </button>
+                      ))}
+                    </div>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" className="h-5 w-5" checked={draft.per_trigger} onChange={(e) => setDraft({ ...draft, per_trigger: e.target.checked })} />
+                      Jumlah mengikuti jumlah kemasan pemicu (1 per plastik)
+                    </label>
+                  </div>
+                )}
+              </div>
+              <div>
                 <Label>Berlaku di platform</Label>
                 <div className="flex flex-wrap gap-2">
                   {ALL.map((c) => (
@@ -152,7 +194,7 @@ export default function TxPackPage() {
               </div>
             </Card>
           ) : (
-            <button className={`${btnCls} w-full`} onClick={() => setDraft({ id: null, ingredient_id: "", qty: "1", channels: [...ALL] })}>+ Tambah aturan</button>
+            <button className={`${btnCls} w-full`} onClick={() => { setDraftFollow(false); setDraft({ id: null, ingredient_id: "", qty: "1", channels: [...ALL], follow_of: [], per_trigger: false }); }}>+ Tambah aturan</button>
           )}
 
           <div className="pt-2">

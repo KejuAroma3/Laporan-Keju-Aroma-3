@@ -25,7 +25,7 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
    `supabase/6-pengaturan-aplikasi.sql` (butuh tabel dari langkah karyawan), lalu
    `supabase/7-tanggal-belanja.sql` (mengganti fungsi record_purchase; jangan jalankan ulang 1-skema.sql sesudahnya),
    `supabase/8-koreksi-penjualan.sql`, `supabase/9-stok-produk.sql`, `supabase/10-satuan-produk-dan-akses.sql`, `supabase/11-kategori-bahan.sql`, `supabase/12-pengaturan-struk.sql`, lalu
-   `supabase/13-varian-produk.sql`, lalu `supabase/14-urutan-produksi.sql`, lalu `supabase/15-isi-per-penjualan.sql`, lalu `supabase/16-rincian-diskon.sql`, lalu `supabase/17-kemasan-per-penjualan.sql`, lalu `supabase/18-isi-berlaku-semua-menu.sql`, lalu `supabase/19-harga-per-platform.sql`, lalu `supabase/20-produksi-tanpa-resep.sql`, lalu `supabase/21-pesanan-khusus.sql`, lalu `supabase/22-nama-pelanggan.sql`, lalu `supabase/23-urutan-menu-jual.sql`, lalu `supabase/24-pengeluaran-promosi.sql`, lalu `supabase/25-aturan-komisi-platform.sql`, lalu `supabase/26-kemasan-per-transaksi.sql`, lalu `supabase/27-ukuran-box.sql`.
+   `supabase/13-varian-produk.sql`, lalu `supabase/14-urutan-produksi.sql`, lalu `supabase/15-isi-per-penjualan.sql`, lalu `supabase/16-rincian-diskon.sql`, lalu `supabase/17-kemasan-per-penjualan.sql`, lalu `supabase/18-isi-berlaku-semua-menu.sql`, lalu `supabase/19-harga-per-platform.sql`, lalu `supabase/20-produksi-tanpa-resep.sql`, lalu `supabase/21-pesanan-khusus.sql`, lalu `supabase/22-nama-pelanggan.sql`, lalu `supabase/23-urutan-menu-jual.sql`, lalu `supabase/24-pengeluaran-promosi.sql`, lalu `supabase/25-aturan-komisi-platform.sql`, lalu `supabase/26-kemasan-per-transaksi.sql`, lalu `supabase/27-ukuran-box.sql`, lalu `supabase/28-kemasan-ikutan.sql`.
 2. Sudah pernah menjalankan skema sebelumnya: cukup jalankan file yang belum pernah dijalankan,
    urut dari nomor terkecil. Semua file aman dijalankan berulang.
 3. Authentication > Users: buat akun untuk Anda dan staf.
@@ -112,7 +112,7 @@ dan "Hampers Keju Aroma Original isi 15". Butuh `supabase/15-isi-per-penjualan.s
 - Penjualan lama tidak berubah (isi dihitung 1).
 - Resep selalu dihitung **per 1 pcs**. Isi berlaku untuk semua menu, termasuk yang belum pernah
   diproduksi (dibuat saat dipesan): bahan terpotong sebanyak resep x isi. Bahan yang dicentang
-  "Dipakai sekali per penjualan" (box, kantong) tidak dikali isi. Butuh `supabase/18-isi-berlaku-semua-menu.sql`, lalu `supabase/19-harga-per-platform.sql`, lalu `supabase/20-produksi-tanpa-resep.sql`, lalu `supabase/21-pesanan-khusus.sql`, lalu `supabase/22-nama-pelanggan.sql`, lalu `supabase/23-urutan-menu-jual.sql`, lalu `supabase/24-pengeluaran-promosi.sql`, lalu `supabase/25-aturan-komisi-platform.sql`, lalu `supabase/26-kemasan-per-transaksi.sql`, lalu `supabase/27-ukuran-box.sql`.
+  "Dipakai sekali per penjualan" (box, kantong) tidak dikali isi. Butuh `supabase/18-isi-berlaku-semua-menu.sql`, lalu `supabase/19-harga-per-platform.sql`, lalu `supabase/20-produksi-tanpa-resep.sql`, lalu `supabase/21-pesanan-khusus.sql`, lalu `supabase/22-nama-pelanggan.sql`, lalu `supabase/23-urutan-menu-jual.sql`, lalu `supabase/24-pengeluaran-promosi.sql`, lalu `supabase/25-aturan-komisi-platform.sql`, lalu `supabase/26-kemasan-per-transaksi.sql`, lalu `supabase/27-ukuran-box.sql`, lalu `supabase/28-kemasan-ikutan.sql`.
 - Varian yang stoknya disatukan (di Atur list produksi): di Resep, stok & HPP-nya mengikuti menu pemegang stok ("ikut <nama>"). Resep utama dikelola di menu pemegang stok; di varian hanya bisa menambah bahan "sekali per penjualan". HPP yang tampil tanpa resep berasal dari HPP stok pemegang stok.
   Di daftar Resep, keterangan "dari produksi" berarti HPP dari stok produksi, "dari resep" berarti
   dihitung dari resep (menu belum diproduksi atau belum disatukan stoknya), dan "isi N" muncul bila isi bukan 1.
@@ -324,7 +324,7 @@ jumlah pelanggan, repeat, dan baru per periode beserta total belanja tiap pelang
   sudah diisi **atau** dicentang "Tidak ada diskon" / "Tidak ada komisi", supaya tidak terlewat. Offline tidak
   diwajibkan.
 - **Menu › Atur urutan** mengatur urutan kategori, produk, dan varian yang tampil di Rekap penjualan (tombol ▲▼, lalu
-  Simpan urutan). Menu baru tampil paling akhir di kategorinya. Butuh `supabase/23-urutan-menu-jual.sql`, lalu `supabase/24-pengeluaran-promosi.sql`, lalu `supabase/25-aturan-komisi-platform.sql`, lalu `supabase/26-kemasan-per-transaksi.sql`, lalu `supabase/27-ukuran-box.sql`.
+  Simpan urutan). Menu baru tampil paling akhir di kategorinya. Butuh `supabase/23-urutan-menu-jual.sql`, lalu `supabase/24-pengeluaran-promosi.sql`, lalu `supabase/25-aturan-komisi-platform.sql`, lalu `supabase/26-kemasan-per-transaksi.sql`, lalu `supabase/27-ukuran-box.sql`, lalu `supabase/28-kemasan-ikutan.sql`.
 
 ## Pengeluaran promosi (voucher hadiah, sampel, konsumsi sendiri, donasi)
 
@@ -333,7 +333,7 @@ jumlah pelanggan, repeat, dan baru per periode beserta total belanja tiap pelang
 - Stok berkurang, tetapi tidak masuk omzet, penjualan, maupun Terlaris.
 - Nilainya (HPP stok) tampil sebagai **Biaya promosi** di Laporan → Laba rugi, beserta rincian per jenis di tab Biaya.
 - Riwayat bisa diubah atau dihapus (stok dikembalikan). Staf boleh mencatat; nilai rupiah hanya terlihat pemilik.
-- Butuh `supabase/24-pengeluaran-promosi.sql`, lalu `supabase/25-aturan-komisi-platform.sql`, lalu `supabase/26-kemasan-per-transaksi.sql`, lalu `supabase/27-ukuran-box.sql`.
+- Butuh `supabase/24-pengeluaran-promosi.sql`, lalu `supabase/25-aturan-komisi-platform.sql`, lalu `supabase/26-kemasan-per-transaksi.sql`, lalu `supabase/27-ukuran-box.sql`, lalu `supabase/28-kemasan-ikutan.sql`.
 
 ## Opname oleh karyawan (Stok belanja)
 
@@ -368,7 +368,7 @@ jumlah pelanggan, repeat, dan baru per periode beserta total belanja tiap pelang
 - Di layar **Cek pesanan** kartu "Kemasan transaksi ini" terisi otomatis dari aturan. Karyawan bisa mengubah jumlah, menghapus, atau menambah kemasan lain.
 - Saat penjualan disimpan, stok kemasan berkurang dan biayanya ditambahkan ke HPP penjualan itu. Mengubah/menghapus penjualan ikut mengembalikan atau menghitung ulang.
 - Beda dengan "Dipakai sekali per penjualan" di resep (itu per porsi menu). Jangan pakai keduanya untuk bahan yang sama.
-- Pesanan Khusus tetap memakai pilihan kemasan manualnya. Butuh `supabase/26-kemasan-per-transaksi.sql`, lalu `supabase/27-ukuran-box.sql`.
+- Pesanan Khusus tetap memakai pilihan kemasan manualnya. Butuh `supabase/26-kemasan-per-transaksi.sql`, lalu `supabase/27-ukuran-box.sql`, lalu `supabase/28-kemasan-ikutan.sql`.
 
 ## Ukuran box otomatis
 
@@ -376,5 +376,20 @@ jumlah pelanggan, repeat, dan baru per periode beserta total belanja tiap pelang
 - Di Cek pesanan, total pcs = porsi × isi (menu dikecualikan tidak dihitung). Aplikasi memilih ukuran terkecil yang muat: 8 pcs → 1 Box S, 15 pcs → 1 Box M, 45 pcs → 3 Box M.
 - **Isi per box**: Otomatis, 5, 10, 20, atau angka sendiri (permintaan pelanggan). 40 pcs isi 5 → 8 Box S.
 - Stok Box S habis → otomatis Box M dengan catatan. Hasil bisa diubah kasir.
-- Jangan masukkan box ke resep (jumlah pecahan membuat stok 49,8). Resep memberi peringatan bila bahan bersatuan pcs/lembar diisi pecahan.
-- Butuh `supabase/27-ukuran-box.sql`.
+- Jangan masukkan box ke resep (jumlah pecahan membuat stok 49,8). Stok bahan bersatuan pcs/lembar ditampilkan dibulatkan ke bawah (lihat di bawah), jadi pemakaian pecahan tidak membuat angka 49,8.
+- Butuh `supabase/27-ukuran-box.sql`, lalu `supabase/28-kemasan-ikutan.sql`.
+
+## Stok bahan per biji dibulatkan
+
+- Bahan bersatuan pcs, lembar, buah, biji, pack, roll, bungkus, pasang, set: stok yang tampil dibulatkan **ke bawah**.
+  Contoh: 1 stiker untuk 15 penjualan (resep 0,07 per penjualan). HPP tetap 0,07, tetapi stok 50 lembar menjadi 49 sejak penjualan pertama,
+  lalu turun 1 lagi setiap 15 penjualan berikutnya.
+- Opname membandingkan dengan angka bulat yang tampil, jadi hitungan fisik 49 sama dengan stok sistem 49 (tanpa selisih).
+- Tidak perlu SQL baru.
+
+## Kemasan ikutan (kabel ties ikut plastik)
+
+- Di **Lainnya › Kemasan per transaksi**, saat menambah/mengubah aturan pilih **Kapan muncul: Ikut kemasan lain**, lalu pilih kemasan pemicu
+  (mis. Plastik PE UK 24, UK 35). Kabel Ties × 1 otomatis muncul di Cek pesanan bila salah satu plastik itu ada, dan hilang bila plastiknya dihapus.
+- Centang "jumlah mengikuti jumlah kemasan pemicu" bila 1 per plastik; tanpa centang = sekali per transaksi.
+- Jumlah yang diubah kasir tidak ditimpa. Butuh `supabase/28-kemasan-ikutan.sql`.

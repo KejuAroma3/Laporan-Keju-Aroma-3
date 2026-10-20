@@ -249,15 +249,6 @@ function RecipeEditor({
       onChanged({ type: "err", text: `Pilih bahan dan isi jumlah per ${menu.stock_unit}.` });
       return;
     }
-    // Bahan yang dihitung per biji (pcs, lembar, ...) tidak boleh berpecahan: stok akan jadi 49,8 dst.
-    const ingRow = ings.find((x) => x.id === ing);
-    if (ingRow && /^(pcs|lembar|buah|biji|pack|roll|bungkus)$/i.test(ingRow.unit.trim()) && Math.abs(effQty - Math.round(effQty)) > 1e-9) {
-      const ok = confirm(
-        `Jumlah ${fmt(effQty)} ${ingRow.unit} berupa pecahan, jadi stok ${ingRow.name} akan turun pecahan (mis. 49,8).\n\n` +
-          `Untuk box/plastik/kemasan yang dipakai per transaksi, sebaiknya pakai Lainnya › Kemasan per transaksi (aturan dan ukuran box) dan jangan dimasukkan ke resep.\n\nTetap simpan di resep?`
-      );
-      if (!ok) return;
-    }
     const existing = recipe.find((r) => r.ingredient_id === ing);
     // per_sale hanya dikirim bila perlu, supaya tetap jalan sebelum supabase/17-kemasan-per-penjualan.sql dijalankan
     const flag = member ? { per_sale: true } : perSale || existing?.per_sale ? { per_sale: perSale } : {};

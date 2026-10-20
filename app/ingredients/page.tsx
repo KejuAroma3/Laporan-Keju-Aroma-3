@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { roundStock } from "@/lib/stockround";
 import { fmt, rupiah } from "@/lib/format";
 import { groupByCategory, INGREDIENT_CATEGORY_SUGGESTIONS } from "@/lib/group";
 import type { StockRow, Unit } from "@/lib/types";
@@ -27,7 +28,7 @@ export default function IngredientsPage() {
     ]);
     const err = [i, u].find((x) => x.error)?.error;
     if (err) setMsg({ type: "err", text: err.message });
-    setRows((i.data ?? []) as StockRow[]);
+    setRows(roundStock((i.data ?? []) as StockRow[]));
     const uList = (u.data ?? []) as Unit[];
     setUnits(uList);
     setUnit((cur) => cur || uList[0]?.name || "");

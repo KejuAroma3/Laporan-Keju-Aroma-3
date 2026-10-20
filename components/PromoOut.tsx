@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { roundStock } from "@/lib/stockround";
 import { fmt, rupiah, todayJkt } from "@/lib/format";
 import { isSupplyCategory } from "@/lib/group";
 import { buildProductionEntries } from "@/lib/production";
@@ -49,7 +50,7 @@ export default function PromoOut({ isOwner, onDone }: { isOwner: boolean; onDone
     ]);
     setProd((p.data ?? []) as ProductStockRow[]);
     setGroups((g.data ?? []) as ProductGroup[]);
-    setIngs((i.data ?? []) as StockRow[]);
+    setIngs(roundStock((i.data ?? []) as StockRow[]));
     if (h.error) {
       setHistoryErr(/promo_outs|schema cache/i.test(h.error.message) ? NEED_SQL : h.error.message);
       setHistory([]);

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { roundStock } from "@/lib/stockround";
 import { fmt, rupiah } from "@/lib/format";
 import { groupByCategory, isSupplyCategory } from "@/lib/group";
 import type { StockRow } from "@/lib/types";
@@ -33,7 +34,7 @@ export default function PackagingPage() {
       supabase.from("recipe_items").select("ingredient_id"),
     ]);
     if (i.error) setMsg({ type: "err", text: i.error.message });
-    setRows(((i.data ?? []) as StockRow[]).filter((x) => isSupplyCategory(x.category)));
+    setRows(roundStock((i.data ?? []) as StockRow[]).filter((x) => isSupplyCategory(x.category)));
     const counts: Record<string, number> = {};
     for (const x of (r.data ?? []) as { ingredient_id: string }[]) counts[x.ingredient_id] = (counts[x.ingredient_id] ?? 0) + 1;
     setUsedIn(counts);

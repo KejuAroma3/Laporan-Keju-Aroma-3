@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { roundStock } from "@/lib/stockround";
 import { fmt, rupiah } from "@/lib/format";
 import type { StockRow } from "@/lib/types";
 import { Card, Empty, Notice, PageTitle, Tabs, btnDangerCls, inputCls, type Msg } from "@/components/ui";
@@ -21,7 +22,7 @@ export default function StockPage() {
   async function load() {
     const i = await supabase.from("v_stock").select("*").order("name");
     if (i.error) setMsg({ type: "err", text: i.error.message });
-    setRows((i.data ?? []) as StockRow[]);
+    setRows(roundStock((i.data ?? []) as StockRow[]));
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); loadRole().then(setRole); }, []);

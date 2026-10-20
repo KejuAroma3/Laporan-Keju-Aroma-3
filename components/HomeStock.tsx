@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { roundStock } from "@/lib/stockround";
 import { fmt } from "@/lib/format";
 import { groupByCategory, isSupplyCategory } from "@/lib/group";
 import { buildProductionEntries, visibleEntries } from "@/lib/production";
@@ -56,7 +57,7 @@ export default function HomeStock({ isOwner }: { isOwner: boolean }) {
         supabase.from("v_product_stock").select("*").order("name"),
         supabase.from("product_groups").select("*"),
       ]);
-      setIngs((i.data ?? []) as StockRow[]);
+      setIngs(roundStock((i.data ?? []) as StockRow[]));
       setProd((p.data ?? []) as ProductStockRow[]);
       setGroups((g.data ?? []) as ProductGroup[]);
       setLoading(false);

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { roundStock } from "@/lib/stockround";
 import { CHANNEL_LABEL, rangeIso, rupiah, todayJkt } from "@/lib/format";
 import { buildSellCats } from "@/lib/sellorder";
 import { resolveSharedStock, stockHolderId, stockNeeded } from "@/lib/production";
@@ -11,7 +12,7 @@ import { Card, Empty, Label, Notice, PageTitle, ScrollList, btnCls, btnGhostCls,
 import { Thumb } from "@/components/BestSellerList";
 import CustomerField from "@/components/CustomerField";
 import { boxPcs, fetchBoxConfig, mergeBoxLines, planBoxes, stockMap, type BoxConfig } from "@/lib/boxes";
-import { fetchSavedPack, fetchTxRules, linesFromRules, savePack, type PackLine, type TxRule } from "@/lib/txpack";
+import { applyFollow, fetchSavedPack, fetchTxRules, linesFromRules, savePack, type PackLine, type TxRule } from "@/lib/txpack";
 import { isSupplyCategory } from "@/lib/group";
 import { DEFAULT_FEE_RULES, calcFee, fetchFeeRules, feeLabel, type FeeRules } from "@/lib/feerules";
 import { custKey, fetchCustomerIndex, saveCustomerName, type CustomerStat } from "@/lib/customers";
@@ -88,7 +89,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     else setMenus((m.data ?? []) as MenuItem[]);
     setStock(resolveSharedStock((s.data ?? []) as ProductStockRow[], (g.data ?? []) as ProductGroup[]));
     setProductGroups((g.data ?? []) as ProductGroup[]);
-    supabase.from("v_stock").select("*").order("name").then((r) => { if (!r.error) setPackOptions((r.data ?? []) as StockRow[]); });
+    supabase.from("v_stock").select("*").order("name").then((r) => { if (!r.error) setPackOptions(roundStock((r.data ?? []) as StockRow[])); });
     // boleh gagal jika supabase/16-rincian-diskon.sql belum dijalankan
     const t = await supabase.from("discount_types").select("id, name").order("created_at");
     if (!t.error) setDiscTypes((t.data ?? []) as { id: string; name: string }[]);
@@ -152,10 +153,14 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   useEffect(() => { fetchFeeRules().then(setFeeRules); }, []);
   useEffect(() => {
     fetchTxRules().then(setTxRules);
-    supabase.from("v_stock").select("*").order("name").then((r) => setPackOptions((r.data ?? []) as StockRow[]));
+    supabase.from("v_stock").select("*").order("name").then((r) => setPackOptions(roundStock((r.data ?? []) as StockRow[])));
   }, []);
   useEffect(() => { fetchBoxConfig().then(setBoxCfg); }, []);
   // Kemasan transaksi: dari aturan (SQL 26) + box otomatis sesuai jumlah pcs (SQL 27). Yang sudah diubah kasir dipertahankan.
+  function setPackManual(next: PackLine[]) {
+    setPackTouched(true);
+    setPackLines(applyFollow(packLines, next, txRules, channel));
+  }
   const boxTotalPcs = boxPcs(Object.entries(cart), menus, boxCfg.exclude);
   useEffect(() => {
     if (step !== "ringkas") return;
@@ -163,7 +168,8 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     const base = packTouched ? packLines : linesFromRules(txRules, channel);
     const names = Object.fromEntries(packOptions.map((r) => [r.id, r.name]));
     const plan = planBoxes(boxTotalPcs, perBox === "auto" ? null : Number(perBox) || null, boxCfg.sizes, stockMap(packOptions), names);
-    setPackLines(mergeBoxLines(base, plan, boxCfg.sizes));
+    const merged = mergeBoxLines(base, plan, boxCfg.sizes);
+    setPackLines(packTouched ? merged : applyFollow(null, merged, txRules, channel));
     setBoxNote(plan.note);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, channel, txRules, boxCfg, boxTotalPcs, perBox, packOptions, editingId]);
@@ -546,7 +552,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                   <select
                     className={`${inputCls} !h-10 min-w-0 flex-1 text-sm`}
                     value={l.id}
-                    onChange={(e) => { setPackTouched(true); setPackLines(packLines.map((x) => (x.key === l.key ? { ...x, id: e.target.value } : x))); }}
+                    onChange={(e) => { setPackManual(packLines.map((x) => (x.key === l.key ? { ...x, id: e.target.value } : x))); }}
                   >
                     <option value="">Pilih kemasan…</option>
                     {[...packOptions]
@@ -558,16 +564,16 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                     inputMode="decimal"
                     className={`${inputCls} !h-10 !w-16 shrink-0 text-right`}
                     value={l.qty}
-                    onChange={(e) => { setPackTouched(true); setPackLines(packLines.map((x) => (x.key === l.key ? { ...x, qty: e.target.value } : x))); }}
+                    onChange={(e) => { setPackManual(packLines.map((x) => (x.key === l.key ? { ...x, qty: e.target.value } : x))); }}
                   />
                   <span className="w-9 shrink-0 text-xs text-stone-500">{ing?.unit ?? ""}</span>
                   <button type="button" className="h-10 w-10 shrink-0 rounded-lg border border-stone-300 bg-white text-red-700" aria-label="Hapus kemasan"
-                    onClick={() => { setPackTouched(true); setPackLines(packLines.filter((x) => x.key !== l.key)); }}>✕</button>
+                    onClick={() => setPackManual(packLines.filter((x) => x.key !== l.key))}>✕</button>
                 </div>
               );
             })}
             <button type="button" className="text-sm font-medium text-brand-800 underline"
-              onClick={() => { setPackTouched(true); setPackLines([...packLines, { key: Date.now(), id: "", qty: "1" }]); }}>
+              onClick={() => setPackManual([...packLines, { key: Date.now(), id: "", qty: "1" }])}>
               + Tambah kemasan
             </button>
           </Card>
