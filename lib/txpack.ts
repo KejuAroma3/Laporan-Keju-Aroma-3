@@ -9,10 +9,11 @@ export type PackLine = { key: number; id: string; qty: string };
 
 // Aturan kemasan per transaksi. Kosong bila SQL 26 belum dijalankan.
 export async function fetchTxRules(): Promise<TxRule[]> {
-  let res = await supabase.from("transaction_packaging_rules").select("id, ingredient_id, qty, channels, follow_of, per_trigger").order("created_at");
-  if (res.error) res = await supabase.from("transaction_packaging_rules").select("id, ingredient_id, qty, channels").order("created_at"); // SQL 28 belum dijalankan
+  const full = await supabase.from("transaction_packaging_rules").select("id, ingredient_id, qty, channels, follow_of, per_trigger").order("created_at");
+  // SQL 28 belum dijalankan: kolom follow_of/per_trigger belum ada, pakai kolom dasar
+  const res = full.error ? await supabase.from("transaction_packaging_rules").select("id, ingredient_id, qty, channels").order("created_at") : full;
   if (res.error || !res.data) return [];
-  return (res.data as Partial<TxRule>[]).map((r) => ({
+  return (res.data as unknown as Partial<TxRule>[]).map((r) => ({
     id: r.id as string,
     ingredient_id: r.ingredient_id as string,
     qty: Number(r.qty),
