@@ -25,7 +25,7 @@ hanya dipakai di server untuk membuat/mengubah akun karyawan, tidak pernah dikir
    `supabase/6-pengaturan-aplikasi.sql` (butuh tabel dari langkah karyawan), lalu
    `supabase/7-tanggal-belanja.sql` (mengganti fungsi record_purchase; jangan jalankan ulang 1-skema.sql sesudahnya),
    `supabase/8-koreksi-penjualan.sql`, `supabase/9-stok-produk.sql`, `supabase/10-satuan-produk-dan-akses.sql`, `supabase/11-kategori-bahan.sql`, `supabase/12-pengaturan-struk.sql`, lalu
-   `supabase/13-varian-produk.sql`, lalu `supabase/14-urutan-produksi.sql`, lalu `supabase/15-isi-per-penjualan.sql`, lalu `supabase/16-rincian-diskon.sql`, lalu `supabase/17-kemasan-per-penjualan.sql`, lalu `supabase/18-isi-berlaku-semua-menu.sql`, lalu `supabase/19-harga-per-platform.sql`, lalu `supabase/20-produksi-tanpa-resep.sql`, lalu `supabase/21-pesanan-khusus.sql`, lalu `supabase/22-nama-pelanggan.sql`, lalu `supabase/23-urutan-menu-jual.sql`, lalu `supabase/24-pengeluaran-promosi.sql`, lalu `supabase/25-aturan-komisi-platform.sql`, lalu `supabase/26-kemasan-per-transaksi.sql`, lalu `supabase/27-ukuran-box.sql`, lalu `supabase/28-kemasan-ikutan.sql`.
+   `supabase/13-varian-produk.sql`, lalu `supabase/14-urutan-produksi.sql`, lalu `supabase/15-isi-per-penjualan.sql`, lalu `supabase/16-rincian-diskon.sql`, lalu `supabase/17-kemasan-per-penjualan.sql`, lalu `supabase/18-isi-berlaku-semua-menu.sql`, lalu `supabase/19-harga-per-platform.sql`, lalu `supabase/20-produksi-tanpa-resep.sql`, lalu `supabase/21-pesanan-khusus.sql`, lalu `supabase/22-nama-pelanggan.sql`, lalu `supabase/23-urutan-menu-jual.sql`, lalu `supabase/24-pengeluaran-promosi.sql`, lalu `supabase/25-aturan-komisi-platform.sql`, lalu `supabase/26-kemasan-per-transaksi.sql`, lalu `supabase/27-ukuran-box.sql`, lalu `supabase/28-kemasan-ikutan.sql`, lalu `supabase/29-hitung-ulang-komisi.sql`.
 2. Sudah pernah menjalankan skema sebelumnya: cukup jalankan file yang belum pernah dijalankan,
    urut dari nomor terkecil. Semua file aman dijalankan berulang.
 3. Authentication > Users: buat akun untuk Anda dan staf.
@@ -399,3 +399,9 @@ jumlah pelanggan, repeat, dan baru per periode beserta total belanja tiap pelang
 - **Pendapatan bersih** = penjualan kotor − diskon. Komisi platform dihitung dari angka ini dan ditampilkan **sesudahnya**,
   lalu **Diterima setelah komisi**. Berlaku di Cek pesanan, Pesanan Khusus, Laporan › Laba rugi, dan Laporan › Riwayat.
 - Hanya tampilan; data penjualan dan laba tidak berubah. Beranda memakai label "Diterima hari ini".
+
+## Hitung ulang komisi penjualan lama
+- Di Lainnya › Komisi platform ada kartu "Terapkan ke penjualan lama": pilih tanggal dari/sampai (atau Hari ini, 7 hari, Bulan ini), klik "Lihat pratinjau perubahan" untuk melihat komisi lama dan baru per platform, lalu "Terapkan perubahan komisi".
+- Simpan aturan komisi dulu; yang dipakai adalah aturan yang tersimpan.
+- Hanya GoFood, GrabFood, ShopeeFood. Penjualan offline dan Pesanan Khusus tidak diubah. Laporan laba periode itu ikut berubah.
+- Butuh `supabase/25-aturan-komisi-platform.sql` dan `supabase/29-hitung-ulang-komisi.sql`.
