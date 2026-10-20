@@ -19,14 +19,14 @@ export async function fetchBoxConfig(): Promise<BoxConfig> {
   return { sizes: sizes.sort((a, b) => a.capacity - b.capacity), exclude };
 }
 
-// Total pcs yang butuh box: porsi x isi per penjualan, tanpa menu berkategori yang dikecualikan (mis. frozen).
+// Total pcs yang butuh box: porsi x isi per penjualan, tanpa menu yang dikecualikan (mis. frozen, hampers).
 export function boxPcs(cart: [string, { qty: number }][], menus: MenuItem[], exclude: string[]): number {
   let total = 0;
   for (const [id, l] of cart) {
     const m = menus.find((x) => x.id === id);
     if (!m) continue;
-    const cat = (m.category ?? "").toLowerCase();
-    if (exclude.some((k) => cat.includes(k))) continue;
+    const label = `${m.category ?? ""} ${m.name}`.toLowerCase(); // kata kunci cocok dengan kategori ATAU nama menu
+    if (exclude.some((k) => label.includes(k))) continue;
     total += l.qty * (m.pack_qty ?? 1);
   }
   return total;

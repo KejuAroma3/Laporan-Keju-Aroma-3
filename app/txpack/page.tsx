@@ -193,10 +193,10 @@ export default function TxPackPage() {
             <button className={`${btnGhostCls} w-full`} onClick={() => setSizeDraft({ id: null, ingredient_id: "", capacity: "" })}>+ Tambah ukuran box</button>
           )}
           <Card className="space-y-2">
-            <Label>Menu tanpa box (kata kunci kategori, pisahkan koma)</Label>
-            <input className={inputCls} value={exclude} onChange={(e) => setExclude(e.target.value)} placeholder="frozen" />
+            <Label>Menu tanpa box (kata kunci nama/kategori, pisahkan koma)</Label>
+            <input className={inputCls} value={exclude} onChange={(e) => setExclude(e.target.value)} placeholder="frozen, hampers" />
             <button className={`${btnGhostCls} w-full`} onClick={saveExclude}>Simpan pengecualian</button>
-            <p className="text-xs text-stone-500">Menu yang kategorinya mengandung kata ini tidak dihitung untuk box (mis. frozen memakai packaging sendiri).</p>
+            <p className="text-xs text-stone-500">Menu yang nama atau kategorinya mengandung kata ini tidak dihitung untuk box. Kemasannya diatur di resep menu itu (mis. hampers: Plastik PE UK 35, dicentang "Dipakai sekali per penjualan").</p>
           </Card>
 
           <Card className="bg-stone-50 text-xs text-stone-600">
