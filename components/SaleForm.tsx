@@ -6,10 +6,13 @@ import { supabase } from "@/lib/supabase";
 import { CHANNEL_LABEL, rangeIso, rupiah, todayJkt } from "@/lib/format";
 import { buildSellCats } from "@/lib/sellorder";
 import { resolveSharedStock, stockHolderId, stockNeeded } from "@/lib/production";
-import type { Channel, MenuItem, ProductGroup, ProductStockRow } from "@/lib/types";
+import type { Channel, MenuItem, ProductGroup, ProductStockRow, StockRow } from "@/lib/types";
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
 import CustomerField from "@/components/CustomerField";
+import { boxPcs, fetchBoxConfig, mergeBoxLines, planBoxes, stockMap, type BoxConfig } from "@/lib/boxes";
+import { fetchSavedPack, fetchTxRules, linesFromRules, savePack, type PackLine, type TxRule } from "@/lib/txpack";
+import { isSupplyCategory } from "@/lib/group";
 import { DEFAULT_FEE_RULES, calcFee, fetchFeeRules, feeLabel, type FeeRules } from "@/lib/feerules";
 import { custKey, fetchCustomerIndex, saveCustomerName, type CustomerStat } from "@/lib/customers";
 import CustomOrderForm from "@/components/CustomOrderForm";
@@ -51,6 +54,13 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const [discDetails, setDiscDetails] = useState<Record<string, DiscountLine[]>>({});
   const [manageTypes, setManageTypes] = useState(false);
   const [newType, setNewType] = useState("");
+  const [txRules, setTxRules] = useState<TxRule[]>([]); // aturan kemasan per transaksi (SQL 26)
+  const [packOptions, setPackOptions] = useState<StockRow[]>([]);
+  const [packLines, setPackLines] = useState<PackLine[]>([]);
+  const [packTouched, setPackTouched] = useState(false); // sudah diubah/dimuat dari penjualan lama: jangan isi ulang dari aturan
+  const [boxCfg, setBoxCfg] = useState<BoxConfig>({ sizes: [], exclude: ["frozen"] }); // ukuran box otomatis (SQL 27)
+  const [perBox, setPerBox] = useState("auto"); // isi per box: "auto" atau angka pcs
+  const [boxNote, setBoxNote] = useState("");
   const [feeRules, setFeeRules] = useState<FeeRules>(DEFAULT_FEE_RULES);
   const [feeKept, setFeeKept] = useState<number | null>(null); // saat ubah penjualan lama: komisi tersimpan dipertahankan sampai dihitung ulang
   const [q, setQ] = useState("");
@@ -78,6 +88,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     else setMenus((m.data ?? []) as MenuItem[]);
     setStock(resolveSharedStock((s.data ?? []) as ProductStockRow[], (g.data ?? []) as ProductGroup[]));
     setProductGroups((g.data ?? []) as ProductGroup[]);
+    supabase.from("v_stock").select("*").order("name").then((r) => { if (!r.error) setPackOptions((r.data ?? []) as StockRow[]); });
     // boleh gagal jika supabase/16-rincian-diskon.sql belum dijalankan
     const t = await supabase.from("discount_types").select("id, name").order("created_at");
     if (!t.error) setDiscTypes((t.data ?? []) as { id: string; name: string }[]);
@@ -139,6 +150,23 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadHistory(); }, [online, date, channel]);
   useEffect(() => { fetchFeeRules().then(setFeeRules); }, []);
+  useEffect(() => {
+    fetchTxRules().then(setTxRules);
+    supabase.from("v_stock").select("*").order("name").then((r) => setPackOptions((r.data ?? []) as StockRow[]));
+  }, []);
+  useEffect(() => { fetchBoxConfig().then(setBoxCfg); }, []);
+  // Kemasan transaksi: dari aturan (SQL 26) + box otomatis sesuai jumlah pcs (SQL 27). Yang sudah diubah kasir dipertahankan.
+  const boxTotalPcs = boxPcs(Object.entries(cart), menus, boxCfg.exclude);
+  useEffect(() => {
+    if (step !== "ringkas") return;
+    if (editingId && perBox === "auto") return;
+    const base = packTouched ? packLines : linesFromRules(txRules, channel);
+    const names = Object.fromEntries(packOptions.map((r) => [r.id, r.name]));
+    const plan = planBoxes(boxTotalPcs, perBox === "auto" ? null : Number(perBox) || null, boxCfg.sizes, stockMap(packOptions), names);
+    setPackLines(mergeBoxLines(base, plan, boxCfg.sizes));
+    setBoxNote(plan.note);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, channel, txRules, boxCfg, boxTotalPcs, perBox, packOptions, editingId]);
 
   function change(m: MenuItem, delta: number) {
     setLastSavedId(null);
@@ -204,6 +232,10 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     setDiscRows([]);
     setFeeKept(null);
     setCustomer("");
+    setPackLines([]);
+    setPackTouched(false);
+    setPerBox("auto");
+    setBoxNote("");
     setNoDisc(false);
     setStep("pilih");
     setEditingId(null);
@@ -218,6 +250,9 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     );
     setDiscKey((k) => k + 10);
     setFeeKept(Number(s.platform_fee) || 0);
+    setPackTouched(true);
+    setPackLines([]);
+    fetchSavedPack(s.id).then(setPackLines);
     setCustomer(custNames[s.id] ?? "");
     setNoDisc(true);
     setStep("pilih");
@@ -310,6 +345,8 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
       return;
     }
     const wasEditing = Boolean(editingId);
+    let packWarn = "";
+    if (typeof savedId === "string" && packLines.length > 0) packWarn = await savePack(savedId, packLines);
     let custWarn = "";
     if (typeof savedId === "string") custWarn = (await saveCustomerName(savedId, customer, custIndex)) ?? "";
     // Rincian diskon disimpan setelah penjualan; total diskon sudah tersimpan di penjualannya.
@@ -323,7 +360,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
       }
     }
     resetForm();
-    const warn = [detailWarn, custWarn ? ` ${custWarn}` : ""].join("");
+    const warn = [detailWarn, custWarn ? ` ${custWarn}` : "", packWarn ? ` ${packWarn}` : ""].join("");
     setMsg({ type: warn ? "err" : "ok", text: `${wasEditing ? "Perubahan disimpan" : "Tersimpan"}. Pendapatan bersih ${rupiah(net)}.${warn}` });
     setLastSavedId(typeof savedId === "string" ? savedId : null);
     load();
@@ -480,6 +517,65 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
             </label>
           )}
         </Card>
+
+        {(packLines.length > 0 || txRules.length > 0 || packTouched || boxCfg.sizes.length > 0) && (
+          <Card className="mb-4 space-y-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <h2 className="font-semibold">Kemasan transaksi ini</h2>
+              <span className="text-xs text-stone-500">sekali per transaksi</span>
+            </div>
+            {boxCfg.sizes.length > 0 && boxTotalPcs > 0 && (
+              <div className="space-y-1.5 rounded-xl bg-stone-50 p-2.5">
+                <div className="text-xs font-semibold text-stone-600">Isi per box (pcs)</div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {["auto", ...[5, 10, 20].filter((n) => n <= boxCfg.sizes[boxCfg.sizes.length - 1].capacity).map(String)].map((v) => (
+                    <button key={v} type="button" onClick={() => setPerBox(v)}
+                      className={`rounded-full border px-3 py-1 text-sm ${perBox === v ? "border-brand-700 bg-brand-700 text-brand-fg" : "border-stone-300 bg-white text-stone-700"}`}>
+                      {v === "auto" ? "Otomatis" : v}
+                    </button>
+                  ))}
+                  <input type="number" inputMode="numeric" placeholder="lain"
+                    className="h-8 w-16 rounded-full border border-stone-300 bg-white px-2 text-center text-sm"
+                    value={perBox !== "auto" && ![5, 10, 20].map(String).includes(perBox) ? perBox : ""}
+                    onChange={(e) => setPerBox(e.target.value === "" ? "auto" : e.target.value)} />
+                </div>
+                {boxNote && <div className="text-xs text-stone-500">{boxNote}</div>}
+              </div>
+            )}
+            {packLines.length === 0 && <p className="text-sm text-stone-500">Tidak ada kemasan.</p>}
+            {packLines.map((l) => {
+              const ing = packOptions.find((x) => x.id === l.id);
+              return (
+                <div key={l.key} className="flex items-center gap-2">
+                  <select
+                    className={`${inputCls} !h-10 min-w-0 flex-1 text-sm`}
+                    value={l.id}
+                    onChange={(e) => { setPackTouched(true); setPackLines(packLines.map((x) => (x.key === l.key ? { ...x, id: e.target.value } : x))); }}
+                  >
+                    <option value="">Pilih kemasan…</option>
+                    {[...packOptions]
+                      .sort((a, b) => Number(isSupplyCategory(b.category)) - Number(isSupplyCategory(a.category)) || a.name.localeCompare(b.name, "id"))
+                      .map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  </select>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    className={`${inputCls} !h-10 !w-16 shrink-0 text-right`}
+                    value={l.qty}
+                    onChange={(e) => { setPackTouched(true); setPackLines(packLines.map((x) => (x.key === l.key ? { ...x, qty: e.target.value } : x))); }}
+                  />
+                  <span className="w-9 shrink-0 text-xs text-stone-500">{ing?.unit ?? ""}</span>
+                  <button type="button" className="h-10 w-10 shrink-0 rounded-lg border border-stone-300 bg-white text-red-700" aria-label="Hapus kemasan"
+                    onClick={() => { setPackTouched(true); setPackLines(packLines.filter((x) => x.key !== l.key)); }}>✕</button>
+                </div>
+              );
+            })}
+            <button type="button" className="text-sm font-medium text-brand-800 underline"
+              onClick={() => { setPackTouched(true); setPackLines([...packLines, { key: Date.now(), id: "", qty: "1" }]); }}>
+              + Tambah kemasan
+            </button>
+          </Card>
+        )}
 
         <Card className="mb-4 space-y-1.5 bg-stone-50 text-sm">
           <div className="flex justify-between"><span>Subtotal</span><span className="tabular-nums">{rupiah(total)}</span></div>

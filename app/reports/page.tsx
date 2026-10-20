@@ -8,10 +8,11 @@ import { Bar, Card, Empty, Notice, PageTitle, Tabs, btnGhostCls, inputCls, type 
 import BestSellerList from "@/components/BestSellerList";
 import { mergeSalesByProduct } from "@/lib/group";
 import OwnerOnly from "@/components/OwnerOnly";
+import SalesHistory from "@/components/SalesHistory";
 import CustomerReport from "@/components/CustomerReport";
 import PurchaseReport, { type Purchase } from "@/components/PurchaseReport";
 
-type Tab = "terlaris" | "labarugi" | "biaya" | "belanja" | "channel" | "pelanggan";
+type Tab = "terlaris" | "riwayat" | "labarugi" | "biaya" | "belanja" | "channel" | "pelanggan";
 type SortKey = "qty_sold" | "revenue" | "gross_profit";
 type ChannelRow = { channel: Channel; qty: number; gross: number; discounts: number; fees: number; cogs: number };
 type Move = { type: string; qty: number; unit_cost: number | null };
@@ -119,6 +120,7 @@ export default function ReportsPage() {
         onChange={setTab}
         tabs={[
           { id: "terlaris", label: "Terlaris" },
+          { id: "riwayat", label: "Riwayat" },
           { id: "labarugi", label: "Laba rugi" },
           { id: "biaya", label: "Biaya" },
           { id: "belanja", label: "Belanja" },
@@ -127,6 +129,8 @@ export default function ReportsPage() {
         ]}
       />
       <Notice msg={msg} />
+
+      {tab === "riwayat" && <SalesHistory />}
 
       {tab === "pelanggan" && <CustomerReport from={from} to={to} />}
 
