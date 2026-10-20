@@ -433,38 +433,34 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
           {discRows.map((r, idx) => (
             <div key={r.key} className="space-y-2 rounded-xl border border-stone-200 bg-stone-50 p-2.5">
               <div className="flex items-center gap-2">
-                <span className="shrink-0 text-xs font-semibold text-stone-500">Diskon {idx + 1}</span>
-                <div className="min-w-0 flex-1">
-                  <input
-                    className={inputCls}
-                    value={r.label}
-                    list="daftar-jenis-diskon"
-                    onChange={(e) => setDiscRows((rows) => rows.map((x) => (x.key === r.key ? { ...x, label: e.target.value } : x)))}
-                    placeholder="Nama diskon (mis. Diskon ongkir)"
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="h-11 w-11 shrink-0 rounded-lg border border-stone-300 bg-white text-red-700"
-                  onClick={() => setDiscRows((rows) => rows.filter((x) => x.key !== r.key))}
-                  aria-label="Hapus diskon ini"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="shrink-0 text-sm text-stone-600">Potongan Rp</span>
+                <span className="shrink-0 text-sm font-semibold text-stone-600">Potongan Rp</span>
                 <div className="min-w-0 flex-1">
                   <input
                     type="number"
                     inputMode="numeric"
+                    autoFocus={!r.amount}
                     className={`${inputCls} text-right font-semibold`}
                     value={r.amount}
                     onChange={(e) => setDiscRows((rows) => rows.map((x) => (x.key === r.key ? { ...x, amount: e.target.value } : x)))}
                     placeholder="0"
                   />
                 </div>
+                <button
+                  type="button"
+                  className="h-11 w-11 shrink-0 rounded-lg border border-stone-300 bg-white text-red-700"
+                  onClick={() => setDiscRows((rows) => rows.filter((x) => x.key !== r.key))}
+                  aria-label={`Hapus diskon ${idx + 1}`}
+                >
+                  ✕
+                </button>
               </div>
+              <input
+                className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none focus:border-brand-700"
+                value={r.label}
+                list="daftar-jenis-diskon"
+                onChange={(e) => setDiscRows((rows) => rows.map((x) => (x.key === r.key ? { ...x, label: e.target.value } : x)))}
+                placeholder="Nama diskon (boleh dikosongkan)"
+              />
             </div>
           ))}
           <datalist id="daftar-jenis-diskon">
@@ -488,7 +484,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
               className="rounded-full border border-dashed border-stone-400 bg-white px-3 py-1.5 text-sm text-stone-600"
               onClick={() => { setDiscRows((rows) => [...rows, { key: discKey, label: "", amount: "" }]); setDiscKey((k) => k + 1); }}
             >
-              + Diskon lain
+              + Tambah diskon (isi angka saja)
             </button>
           </div>
           {manageTypes && (
