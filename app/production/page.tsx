@@ -193,8 +193,8 @@ function StockRowContent({ r, label, showValue, note }: { r: ProductStockRow; la
     <>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="truncate font-semibold">{label}</div>
-          {note && <div className="truncate text-xs text-stone-400">{note}</div>}
+          <div className="break-words font-semibold leading-snug">{label}</div>
+          {note && <div className="break-words text-xs text-stone-400">{note}</div>}
           {r.track_stock ? (
             <div className="text-sm text-stone-500">
               {showValue && `HPP ${rupiah(r.avg_product_cost)} per ${r.stock_unit}`}

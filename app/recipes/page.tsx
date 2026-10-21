@@ -117,8 +117,8 @@ export default function RecipesPage() {
                           <button className="flex w-full items-center gap-3 text-left" onClick={() => setOpen(open === m.id ? null : m.id)}>
                             <Thumb url={m.photo_url} name={m.name} size={48} />
                             <div className="min-w-0 flex-1">
-                              <div className="truncate font-semibold">{m.variant_name || m.name}</div>
-                              <div className="truncate text-sm text-stone-500">
+                              <div className="break-words font-semibold leading-snug">{m.variant_name || m.name}</div>
+                              <div className="break-words text-sm text-stone-500">
                                 {m.variant_name ? `${m.name} · ` : ""}
                                 {holderLabel
                                   ? `Stok & HPP mengikuti "${holderLabel}"${count > 0 ? `, +${count} bahan per penjualan` : ""}`

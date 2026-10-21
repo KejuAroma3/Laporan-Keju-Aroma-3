@@ -238,11 +238,11 @@ export default function MenuPage() {
                           <button className="flex w-full items-center gap-3 text-left" onClick={() => setOpen(open === m.id ? null : m.id)}>
                             <Thumb url={m.photo_url} name={m.name} size={48} />
                             <div className="min-w-0 flex-1">
-                              <div className="truncate font-semibold">
+                              <div className="break-words font-semibold leading-snug">
                                 {m.variant_name || m.name}
                                 {!m.is_active && <span className="text-xs font-normal text-stone-500"> (disembunyikan)</span>}
                               </div>
-                              <div className="truncate text-sm text-stone-500">
+                              <div className="break-words text-sm text-stone-500">
                                 {m.variant_name ? `${m.name} · ` : ""}
                                 {m.category || "Tanpa kategori"}{bundles[m.id]?.length ? ", paket" : (m.pack_qty ?? 1) !== 1 ? `, isi ${m.pack_qty}` : ""}
                               </div>

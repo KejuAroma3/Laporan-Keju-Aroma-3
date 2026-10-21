@@ -836,7 +836,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                 <div key={s.id} className="py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">
+                      <div className="break-words text-sm font-medium">
                         {customNames[s.id] ? `Pesanan khusus: ${customNames[s.id]} ×${s.sale_items.reduce((n, i) => n + i.qty, 0)}` : summarize(s)}
                       </div>
                       <div className="text-xs text-stone-500">
@@ -916,7 +916,7 @@ function ProductRow({
       <div className="flex items-center gap-3">
         <Thumb url={m.photo_url} name={m.name} size={44} />
         <div className="min-w-0 flex-1">
-          <div className="truncate font-semibold">{label}</div>
+          <div className="break-words font-semibold leading-snug">{label}</div>
           <div className="text-sm text-stone-500">{rupiah(priceFor(m, channel, prices))}</div>
           {parts && parts.length > 0 && (
             <div className={`text-xs font-medium ${parts.some((p) => p.short) ? "text-red-700" : "text-stone-400"}`}>
