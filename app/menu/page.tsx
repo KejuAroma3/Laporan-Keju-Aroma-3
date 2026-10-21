@@ -14,6 +14,7 @@ import { Thumb } from "@/components/BestSellerList";
 import PhotoUpload from "@/components/PhotoUpload";
 import { resolveSharedStock } from "@/lib/production";
 import OwnerOnly from "@/components/OwnerOnly";
+import { fetchBundles, saveBundle, type BundleMap, type BundlePart } from "@/lib/bundles";
 
 // Mencari produk dasar berdasarkan nama (dibuat kalau belum ada), dipakai
 // baik saat menambah menu baru maupun saat mengubah menu yang sudah ada.
@@ -42,6 +43,7 @@ export default function MenuPage() {
   const [prices, setPrices] = useState<PriceMap>({});
   const [groups, setGroups] = useState<ProductGroup[]>([]);
   const [stock, setStock] = useState<Record<string, ProductStockRow>>({});
+  const [bundles, setBundles] = useState<BundleMap>({}); // isi menu paket (supabase/30-menu-paket.sql)
   const [open, setOpen] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [name, setName] = useState("");
@@ -73,6 +75,7 @@ export default function MenuPage() {
       }
     }
     setPrices(map);
+    fetchBundles().then(setBundles);
     setGroups((g.data ?? []) as ProductGroup[]);
     setStock(resolveSharedStock((s.data ?? []) as ProductStockRow[], (g.data ?? []) as ProductGroup[]));
   }
@@ -89,6 +92,18 @@ export default function MenuPage() {
         (m.variant_name ?? "").toLowerCase().includes(term)
     );
   }, [menus, q]);
+
+  // HPP perkiraan; menu paket = jumlah HPP komponennya
+  const hppOf = (m: MenuItem): number => {
+    const parts = bundles[m.id];
+    if (parts?.length) {
+      return parts.reduce((t, p) => {
+        const c = menus.find((x) => x.id === p.component_id);
+        return t + (c ? menuHpp(c, menus, recipes, ings, stock, groups) * p.qty : 0);
+      }, 0);
+    }
+    return menuHpp(m, menus, recipes, ings, stock, groups);
+  };
 
   const buckets = useMemo(() => groupByProduct(filtered, groups, "Menu lainnya"), [filtered, groups]);
 
@@ -229,7 +244,7 @@ export default function MenuPage() {
                               </div>
                               <div className="truncate text-sm text-stone-500">
                                 {m.variant_name ? `${m.name} · ` : ""}
-                                {m.category || "Tanpa kategori"}{(m.pack_qty ?? 1) !== 1 ? `, isi ${m.pack_qty}` : ""}
+                                {m.category || "Tanpa kategori"}{bundles[m.id]?.length ? ", paket" : (m.pack_qty ?? 1) !== 1 ? `, isi ${m.pack_qty}` : ""}
                               </div>
                               {tracked && (
                                 <div className={`text-xs font-medium ${st.is_low ? "text-red-700" : "text-stone-400"}`}>
@@ -253,7 +268,10 @@ export default function MenuPage() {
                               key={m.id}
                               menu={m}
                               groups={groups}
-                              hpp={menuHpp(m, menus, recipes, ings, stock, groups)}
+                              hpp={hppOf(m)}
+                              allMenus={menus}
+                              parts={bundles[m.id] ?? []}
+                              hppOf={hppOf}
                               savedPrices={prices[m.id] ?? {}}
                               onChanged={(x) => { if (x) setMsg(x); load(); }}
                             />
@@ -277,9 +295,15 @@ function MenuEditor({
   menu,
   groups,
   hpp,
+  allMenus,
+  parts,
+  hppOf,
   savedPrices,
   onChanged,
 }: {
+  allMenus: MenuItem[];
+  parts: BundlePart[];
+  hppOf: (m: MenuItem) => number;
   menu: MenuItem;
   groups: ProductGroup[];
   hpp: number;
@@ -481,6 +505,7 @@ function MenuEditor({
           <p className="col-span-2 text-xs text-stone-500">Diberi tanda "stok menipis" kalau stok produk turun sampai atau di bawah angka minimum.</p>
         </div>
       )}
+      <BundleEditor key={`b-${menu.id}-${JSON.stringify(parts)}`} menu={menu} allMenus={allMenus} parts={parts} hppOf={hppOf} onChanged={onChanged} />
       <PlatformPrices key={`${menu.id}-${JSON.stringify(savedPrices)}`} menu={menu} hpp={hpp} saved={savedPrices} onChanged={onChanged} />
       <button className={`${btnGhostCls} w-full`} onClick={copyMenu}>
         Salin menu ini
@@ -496,6 +521,87 @@ function MenuEditor({
       <Link href={`/recipes?menu=${menu.id}`} className={`${btnGhostCls} block w-full text-center`}>
         Atur resep menu ini
       </Link>
+    </div>
+  );
+}
+
+// Isi menu paket: menu lain yang ikut terjual tiap paket ini laku (stok tiap komponen ikut berkurang).
+function BundleEditor({
+  menu,
+  allMenus,
+  parts,
+  hppOf,
+  onChanged,
+}: {
+  menu: MenuItem;
+  allMenus: MenuItem[];
+  parts: BundlePart[];
+  hppOf: (m: MenuItem) => number;
+  onChanged: (m: Msg) => void;
+}) {
+  const [rows, setRows] = useState<{ id: string; qty: string }[]>(parts.map((p) => ({ id: p.component_id, qty: String(p.qty) })));
+  const [open, setOpen] = useState(parts.length > 0);
+  const [busy, setBusy] = useState(false);
+  const options = allMenus.filter((m) => m.id !== menu.id && m.is_active);
+  const nameOf = (m: MenuItem) => `${m.name}${m.variant_name ? ` (${m.variant_name})` : ""}`;
+  const cost = rows.reduce((t, r) => {
+    const c = allMenus.find((m) => m.id === r.id);
+    return t + (c ? hppOf(c) * (Number(r.qty) || 0) : 0);
+  }, 0);
+
+  async function save() {
+    const clean = rows.filter((r) => r.id);
+    const ids = clean.map((r) => r.id);
+    if (new Set(ids).size !== ids.length) return onChanged({ type: "err", text: "Satu menu hanya boleh sekali di daftar isi paket. Naikkan jumlahnya saja." });
+    if (clean.some((r) => !(Number(r.qty) > 0))) return onChanged({ type: "err", text: "Jumlah tiap isi paket harus lebih dari 0." });
+    setBusy(true);
+    const err = await saveBundle(menu.id, clean.map((r) => ({ component_id: r.id, qty: Number(r.qty) })));
+    setBusy(false);
+    onChanged(err ? { type: "err", text: err } : { type: "ok", text: clean.length ? "Isi paket tersimpan. Penjualan berikutnya memotong stok tiap isi paket." : "Menu ini kembali jadi menu biasa." });
+  }
+
+  if (!open) {
+    return (
+      <button type="button" className={`${btnGhostCls} w-full`} onClick={() => { setOpen(true); if (rows.length === 0) setRows([{ id: "", qty: "1" }]); }}>
+        Jadikan menu paket (isi beberapa menu)
+      </button>
+    );
+  }
+  return (
+    <div className="space-y-2 rounded-xl border border-stone-200 p-3">
+      <div>
+        <h3 className="text-sm font-semibold">Isi paket</h3>
+        <p className="text-xs text-stone-500">
+          Tiap paket terjual, stok semua menu di bawah berkurang (jumlah × isi per penjualan masing-masing). Harga jual paket
+          tetap satu angka di atas, HPP paket = jumlah HPP isinya. &quot;Isi per penjualan&quot; menu paket ini tidak dipakai.
+        </p>
+      </div>
+      {rows.map((r, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <select className={`${inputCls} min-w-0 flex-1`} value={r.id} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, id: e.target.value } : x)))}>
+            <option value="">Pilih menu…</option>
+            {options.map((m) => (
+              <option key={m.id} value={m.id}>{nameOf(m)}</option>
+            ))}
+          </select>
+          <input
+            type="number"
+            inputMode="decimal"
+            className={`${inputCls} w-16 shrink-0`}
+            value={r.qty}
+            onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))}
+            aria-label="Jumlah"
+          />
+          <button type="button" className="h-11 w-11 shrink-0 rounded-lg border border-stone-300 text-red-700" onClick={() => setRows(rows.filter((_, j) => j !== i))} aria-label="Hapus isi">×</button>
+        </div>
+      ))}
+      <button type="button" className={`${btnGhostCls} w-full`} onClick={() => setRows([...rows, { id: "", qty: "1" }])}>+ Tambah isi paket</button>
+      {rows.some((r) => r.id) && (
+        <p className="text-xs text-stone-500">Perkiraan HPP paket: {rupiah(cost)}{menu.price > 0 ? `, laba kotor ${rupiah(menu.price - cost)}` : ""}</p>
+      )}
+      <button type="button" className={`${btnCls} w-full`} onClick={save} disabled={busy}>
+        {busy ? "Menyimpan…" : rows.some((r) => r.id) ? "Simpan isi paket" : "Simpan (jadi menu biasa)"}
+      </button>
     </div>
   );
 }

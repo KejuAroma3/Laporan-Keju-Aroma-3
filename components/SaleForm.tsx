@@ -11,6 +11,7 @@ import type { Channel, MenuItem, ProductGroup, ProductStockRow, StockRow } from 
 import { Card, Empty, Label, Notice, PageTitle, ScrollList, btnCls, btnGhostCls, inputCls, type Msg } from "@/components/ui";
 import { Thumb } from "@/components/BestSellerList";
 import CustomerField from "@/components/CustomerField";
+import { expandBundles, fetchBundles, type BundleMap } from "@/lib/bundles";
 import { boxPcs, fetchBoxConfig, mergeBoxLines, planBoxes, stockMap, type BoxConfig } from "@/lib/boxes";
 import { applyFollow, fetchSavedPack, fetchTxRules, linesFromRules, savePack, type PackLine, type TxRule } from "@/lib/txpack";
 import { isSupplyCategory } from "@/lib/group";
@@ -22,6 +23,7 @@ import { priceFor, type PriceMap } from "@/lib/platformprice";
 import { cleanDiscounts, discountLinesFor, sumDiscounts, type DiscountInput, type DiscountLine } from "@/lib/discounts";
 
 type Line = { qty: number; price: number };
+type PartInfo = { name: string; qty: number; short: boolean; canSell: number | null };
 type HistoryItem = { menu_item_id: string; qty: number; unit_price: number; menu_items: { name: string } | null };
 type HistorySale = {
   id: string;
@@ -44,6 +46,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const online = mode === "online";
   const [menus, setMenus] = useState<MenuItem[]>([]);
   const [stock, setStock] = useState<Record<string, ProductStockRow>>({});
+  const [bundles, setBundles] = useState<BundleMap>({}); // isi menu paket (SQL 30)
   const [productGroups, setProductGroups] = useState<ProductGroup[]>([]);
   const [cart, setCart] = useState<Record<string, Line>>({});
   const [channel, setChannel] = useState<Channel>("offline");
@@ -80,6 +83,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
 
   async function load() {
     fetchCustomerIndex().then(setCustIndex);
+    fetchBundles().then(setBundles);
     const [m, s, g] = await Promise.all([
       supabase.from("menu_items").select("*").eq("is_active", true).order("category").order("name"),
       supabase.from("v_product_stock").select("*"), // boleh gagal jika supabase/9-stok-produk.sql belum dijalankan
@@ -161,7 +165,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     setPackTouched(true);
     setPackLines(applyFollow(packLines, next, txRules, channel));
   }
-  const boxTotalPcs = boxPcs(Object.entries(cart), menus, boxCfg.exclude);
+  const boxTotalPcs = boxPcs(Object.entries(cart).filter(([id]) => !bundles[id]?.length), menus, boxCfg.exclude);
   useEffect(() => {
     if (step !== "ringkas") return;
     if (editingId && perBox === "auto") return;
@@ -208,19 +212,32 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
   const total = lines.reduce((s, [, l]) => s + l.qty * l.price, 0);
   const portions = lines.reduce((s, [, l]) => s + l.qty, 0);
   const need = stockNeeded(
-    lines.flatMap(([id, l]) => {
-      const menu = menus.find((m) => m.id === id);
-      return menu ? [{ menu, qty: l.qty }] : [];
-    }),
+    expandBundles(
+      lines.flatMap(([id, l]) => {
+        const menu = menus.find((m) => m.id === id);
+        return menu ? [{ menu, qty: l.qty }] : [];
+      }),
+      bundles,
+      menus
+    ),
     productGroups
   );
+  const isShort = (c: MenuItem) => !!stock[c.id]?.track_stock && (need.get(stockHolderId(c, productGroups)) ?? 0) > (stock[c.id]?.stock_on_hand ?? 0);
   const overStockItems = lines
     .filter(([id]) => {
       const menu = menus.find((m) => m.id === id);
-      if (!menu || !stock[id]?.track_stock) return false;
-      return (need.get(stockHolderId(menu, productGroups)) ?? 0) > (stock[id]?.stock_on_hand ?? 0);
+      if (!menu) return false;
+      if (bundles[id]?.length) return bundles[id].some((p) => { const c = menus.find((x) => x.id === p.component_id); return !!c && isShort(c); });
+      return isShort(menu);
     })
     .map(([id]) => menus.find((m) => m.id === id)?.name ?? "menu");
+  const partsOf = (m: MenuItem): PartInfo[] =>
+    (bundles[m.id] ?? []).map((p) => {
+      const c = menus.find((x) => x.id === p.component_id);
+      const st = c ? stock[c.id] : undefined;
+      const per = c ? p.qty * (c.pack_qty ?? 1) : 0;
+      return { name: c?.name ?? "Menu", qty: p.qty, short: c ? isShort(c) : false, canSell: st?.track_stock && per > 0 ? Math.floor(st.stock_on_hand / per) : null };
+    });
   const discLines = cleanDiscounts(discRows);
   const discountTotal = sumDiscounts(discLines);
   const isPlatform = online && channel !== "offline";
@@ -751,6 +768,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                     prices={prices}
                     change={change}
                     setPrice={setPrice}
+                    parts={partsOf(u.menus[0])}
                   />
                 </Card>
               ) : (
@@ -769,6 +787,7 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
                           prices={prices}
                           change={change}
                           setPrice={setPrice}
+                          parts={partsOf(m)}
                         />
                       </div>
                     ))}
@@ -874,7 +893,9 @@ function ProductRow({
   prices,
   change,
   setPrice,
+  parts,
 }: {
+  parts?: PartInfo[];
   m: MenuItem;
   label: string;
   cart: Record<string, Line>;
@@ -897,7 +918,13 @@ function ProductRow({
         <div className="min-w-0 flex-1">
           <div className="truncate font-semibold">{label}</div>
           <div className="text-sm text-stone-500">{rupiah(priceFor(m, channel, prices))}</div>
-          {tracked && (
+          {parts && parts.length > 0 && (
+            <div className={`text-xs font-medium ${parts.some((p) => p.short) ? "text-red-700" : "text-stone-400"}`}>
+              Paket: {parts.map((p) => `${p.qty > 1 ? `${p.qty}× ` : ""}${p.name}`).join(" + ")}
+              {parts.some((p) => p.canSell !== null) && `. Stok cukup untuk ${Math.min(...parts.flatMap((p) => (p.canSell === null ? [] : [p.canSell])))} paket`}
+            </div>
+          )}
+          {tracked && !(parts && parts.length > 0) && (
             <div className={`text-xs font-medium ${overStock ? "text-red-700" : "text-stone-400"}`}>
               Stok: {st.stock_on_hand} {st.stock_unit}
               {pack !== 1 && `, isi ${pack} ${st.stock_unit} per jual`}
