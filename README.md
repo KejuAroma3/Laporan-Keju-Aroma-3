@@ -413,3 +413,8 @@ jumlah pelanggan, repeat, dan baru per periode beserta total belanja tiap pelang
 - Paket tidak dihitung ke aturan box otomatis (pakai kemasan per transaksi/manual seperti hampers).
 - Laporan mencatat satu baris "paket" dengan omzet harga paket. Isi paket tidak bertingkat (paket di dalam paket).
 - Butuh `supabase/30-menu-paket.sql`.
+
+## Topping dimsum di halaman Jual
+- Menu berkategori "Topping" (mis. Topping Mayo, Topping Chili Oil, dibuat sebagai menu biasa dengan resep 1 sachet) otomatis ditawarkan di kartu "Topping dimsum" saat ada menu dimsum (kategori atau nama memuat "dimsum") di keranjang.
+- Tombol "Samakan N" mengisi jumlah topping sama dengan jumlah porsi dimsum; jumlahnya tetap bisa diubah dengan + dan −. Topping tetap tercatat sebagai penjualan sendiri berharga topping, dan stok sachet ikut terpotong lewat resepnya.
+- Tidak butuh SQL baru. Hapus mayo dan chili oil dari resep dimsum agar stok tidak terpotong dua kali.

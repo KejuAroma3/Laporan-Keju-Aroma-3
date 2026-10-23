@@ -190,6 +190,16 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
     });
   }
 
+  function setQty(m: MenuItem, qty: number) {
+    setLastSavedId(null);
+    setCart((c) => {
+      const next = { ...c };
+      if (qty <= 0) delete next[m.id];
+      else next[m.id] = { ...(c[m.id] ?? { price: priceFor(m, channel, prices) }), qty };
+      return next;
+    });
+  }
+
   // Ganti platform: harga baris di keranjang ikut harga platform itu (harga yang sudah diubah manual ikut diganti).
   function switchChannel(c: Channel) {
     setChannel(c);
@@ -238,6 +248,13 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
       const per = c ? p.qty * (c.pack_qty ?? 1) : 0;
       return { name: c?.name ?? "Menu", qty: p.qty, short: c ? isShort(c) : false, canSell: st?.track_stock && per > 0 ? Math.floor(st.stock_on_hand / per) : null };
     });
+  // Topping dimsum: menu berkategori "topping" ditawarkan saat ada dimsum di keranjang, jumlah awal = jumlah porsi dimsum.
+  const isTopping = (m: MenuItem) => (m.category ?? "").toLowerCase().includes("topping");
+  const toppingMenus = menus.filter(isTopping);
+  const dimsumQty = lines.reduce((t, [id, l]) => {
+    const m = menus.find((x) => x.id === id);
+    return m && !isTopping(m) && `${m.category ?? ""} ${m.name}`.toLowerCase().includes("dimsum") ? t + l.qty : t;
+  }, 0);
   const discLines = cleanDiscounts(discRows);
   const discountTotal = sumDiscounts(discLines);
   const isPlatform = online && channel !== "offline";
@@ -749,6 +766,34 @@ export default function SaleForm({ mode }: { mode: "offline" | "online" }) {
         <p className="py-8 text-center text-sm text-stone-500">
           Belum ada menu aktif. Tambahkan dulu di Lainnya › Menu &amp; Resep.
         </p>
+      )}
+
+      {dimsumQty > 0 && toppingMenus.length > 0 && (
+        <Card className="mb-4 space-y-2 border-brand-600 bg-brand-50/40">
+          <div>
+            <h2 className="font-semibold">Topping dimsum</h2>
+            <p className="text-xs text-stone-500">Ada {dimsumQty} porsi dimsum di keranjang. Tekan &quot;Samakan&quot; untuk {dimsumQty} topping, atau atur jumlahnya sesuai permintaan.</p>
+          </div>
+          {toppingMenus.map((m) => {
+            const q = cart[m.id]?.qty ?? 0;
+            return (
+              <div key={m.id} className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <div className="min-w-[8rem] flex-1">
+                  <div className="break-words text-sm font-semibold leading-snug">{m.name}</div>
+                  <div className="text-xs text-stone-500">{rupiah(priceFor(m, channel, prices))}</div>
+                </div>
+                <div className="ml-auto flex items-center gap-2">
+                  {q !== dimsumQty && (
+                    <button type="button" className={`${btnGhostCls} h-10 px-3 text-sm`} onClick={() => setQty(m, dimsumQty)}>Samakan {dimsumQty}</button>
+                  )}
+                  <button type="button" className="h-10 w-10 rounded-full border border-stone-300 text-xl active:bg-stone-100" onClick={() => change(m, -1)} aria-label={`Kurangi ${m.name}`}>−</button>
+                  <span className="w-6 text-center text-lg font-bold tabular-nums">{q}</span>
+                  <button type="button" className="h-10 w-10 rounded-full bg-brand-700 text-xl text-brand-fg active:bg-brand-800" onClick={() => change(m, 1)} aria-label={`Tambah ${m.name}`}>+</button>
+                </div>
+              </div>
+            );
+          })}
+        </Card>
       )}
 
       {cats.map((cat) => (
