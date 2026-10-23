@@ -235,9 +235,9 @@ export default function MenuPage() {
                       const tracked = st?.track_stock ?? false;
                       return (
                         <Card key={m.id} className={m.is_active ? "" : "opacity-60"}>
-                          <button className="flex w-full items-center gap-3 text-left" onClick={() => setOpen(open === m.id ? null : m.id)}>
+                          <button className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 text-left" onClick={() => setOpen(open === m.id ? null : m.id)}>
                             <Thumb url={m.photo_url} name={m.name} size={48} />
-                            <div className="min-w-0 flex-1">
+                            <div className="min-w-[11rem] flex-1">
                               <div className="break-words font-semibold leading-snug">
                                 {m.variant_name || m.name}
                                 {!m.is_active && <span className="text-xs font-normal text-stone-500"> (disembunyikan)</span>}
@@ -252,7 +252,7 @@ export default function MenuPage() {
                                 </div>
                               )}
                             </div>
-                            <div className="shrink-0 text-right text-sm">
+                            <div className="ml-auto shrink-0 text-right text-sm">
                               <div className="font-semibold tabular-nums">{rupiah(m.price)}</div>
                               {hasRecipe ? (
                                 <div className={`text-xs ${onlyPerSale && !(stock[m.id]?.track_stock) ? "font-medium text-amber-700" : "text-stone-400"}`}>

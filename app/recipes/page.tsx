@@ -114,9 +114,9 @@ export default function RecipesPage() {
                       const holderLabel = holderMenu && holderMenu.id !== m.id ? holderMenu.variant_name || holderMenu.name : null;
                       return (
                         <Card key={m.id} className={m.is_active ? "" : "opacity-60"}>
-                          <button className="flex w-full items-center gap-3 text-left" onClick={() => setOpen(open === m.id ? null : m.id)}>
+                          <button className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 text-left" onClick={() => setOpen(open === m.id ? null : m.id)}>
                             <Thumb url={m.photo_url} name={m.name} size={48} />
-                            <div className="min-w-0 flex-1">
+                            <div className="min-w-[11rem] flex-1">
                               <div className="break-words font-semibold leading-snug">{m.variant_name || m.name}</div>
                               <div className="break-words text-sm text-stone-500">
                                 {m.variant_name ? `${m.name} · ` : ""}
@@ -127,7 +127,7 @@ export default function RecipesPage() {
                                     : "Belum ada bahan"}
                               </div>
                             </div>
-                            <div className="shrink-0 text-right text-sm">
+                            <div className="ml-auto shrink-0 text-right text-sm">
                               {count > 0 || holderLabel ? (
                                 <>
                                   <div className="font-semibold tabular-nums">HPP {rupiah(hpp)}</div>
