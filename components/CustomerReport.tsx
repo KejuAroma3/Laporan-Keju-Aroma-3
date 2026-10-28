@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { rangeIso, rupiah } from "@/lib/format";
 import { custKey, lastOrderLabel } from "@/lib/customers";
-import { Card, Empty, Stat } from "@/components/ui";
+import { Card, Empty, ScrollList, SearchInput, Stat } from "@/components/ui";
 
 type SaleRow = {
   customer_name: string;
@@ -20,6 +20,8 @@ export default function CustomerReport({ from, to }: { from: string; to: string 
   const [rows, setRows] = useState<SaleRow[]>([]);
   const [unnamed, setUnnamed] = useState(0);
   const [err, setErr] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [show, setShow] = useState<"semua" | "repeat" | "baru">("semua");
 
   useEffect(() => {
     (async () => {
@@ -78,6 +80,11 @@ export default function CustomerReport({ from, to }: { from: string; to: string 
     };
   }, [rows, from, to]);
 
+  const term = q.trim().toLowerCase();
+  const shown = data.list.filter(
+    (c) => (!term || c.name.toLowerCase().includes(term)) && (show === "semua" || (show === "repeat") === data.repeat(c))
+  );
+
   if (err) return <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{err}</p>;
 
   const pctRepeat = data.list.length > 0 ? Math.round((data.repeatCount / data.list.length) * 100) : 0;
@@ -96,11 +103,30 @@ export default function CustomerReport({ from, to }: { from: string; to: string 
         {data.list.length === 0 ? (
           <Empty>Belum ada penjualan bernama pelanggan di periode ini.</Empty>
         ) : (
+          <>
+          <SearchInput value={q} onChange={setQ} placeholder="Cari nama pelanggan…" />
+          <div className="mb-2 flex items-center gap-2">
+            {(["semua", "repeat", "baru"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setShow(k)}
+                className={`h-9 rounded-full border px-4 text-sm font-semibold capitalize ${show === k ? "border-brand-700 bg-brand-700 text-brand-fg" : "border-stone-300 bg-white text-stone-700"}`}
+              >
+                {k}
+              </button>
+            ))}
+            <span className="ml-auto text-xs text-stone-500">{shown.length} dari {data.list.length}</span>
+          </div>
+          {shown.length === 0 ? (
+            <Empty>Tidak ada pelanggan yang cocok.</Empty>
+          ) : (
+          <ScrollList maxHeight="26rem">
           <ul className="divide-y divide-stone-100">
-            {data.list.map((c) => (
+            {shown.map((c) => (
               <li key={c.name} className="flex items-start justify-between gap-3 py-2.5 text-sm">
                 <div className="min-w-0">
-                  <div className="truncate font-semibold">
+                  <div className="break-words font-semibold">
                     {c.name}{" "}
                     <span
                       className={`ml-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -118,6 +144,9 @@ export default function CustomerReport({ from, to }: { from: string; to: string 
               </li>
             ))}
           </ul>
+          </ScrollList>
+          )}
+          </>
         )}
       </Card>
     </div>
